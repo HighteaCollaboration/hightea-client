@@ -69,12 +69,10 @@ def check_status(token):
     elif st == 'errored':
         print("Token errored", file=sys.stderr)
         sys.exit(1)
-    elif st=='completed':
+    elif st == 'completed':
         print("Token completed", file=sys.stderr)
         print(res['result'])
         sys.exit(0)
-
-
 
 
 def wait_token(token):
@@ -87,8 +85,6 @@ def wait_token(token):
         time.sleep(timeout)
 
 
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(title='commands', dest='command')
@@ -97,6 +93,8 @@ def parse_args():
     hist = commands.add_parser('hist', help='make and histogram')
     hist.add_argument('process', help='process to compute the histogram for')
     hist.add_argument('file', help='JSON file with the hisogram specification')
+    token_cmd = commands.add_parser('token', help='query the status of a token')
+    token_cmd.add_argument('token', help='a token that has been requested')
     ns = parser.parse_args()
     cmd = ns.command
     if cmd == 'lpdf':
@@ -107,6 +105,8 @@ def parse_args():
         pname = ns.process
         fname = ns.file
         make_hist(pname, fname)
+    elif cmd == 'token':
+        wait_token(ns.token)
 
 
 def main():

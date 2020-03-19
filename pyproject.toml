@@ -1,0 +1,18 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "highteacli"
+author = "Zahari Kassabov"
+author-email = "zaharid@protonmail.com"
+home-page = "https://github.com/Zaharid/highteacli"
+classifiers = ["License :: OSI Approved :: MIT License"]
+description-file = "README.md"
+requires = [
+    "requests",
+]
+requires-python = ">3.6"
+
+[tool.flit.scripts]
+highteacli = "highteacli:main"

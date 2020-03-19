@@ -9,6 +9,15 @@ See A Theory-Events-Based Library of LHC Processes:
 
 http://www.precision.hep.phy.cam.ac.uk/events-based-library/
 
+Installation
+------------
+
+The package is available on pip:
+
+```
+pip install highteacli
+```
+
 Basic Usage
 -----------
 

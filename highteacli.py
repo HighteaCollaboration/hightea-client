@@ -18,10 +18,11 @@ ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
 
 FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
 
+GLOBAL_SESSION = requests.Session()
 
 def simple_req(method, url, data=None):
     try:
-        resp = requests.request(method, f'{ENDPOINT}{url}', verify=False, json=data)
+        resp = GLOBAL_SESSION.request(method, f'{ENDPOINT}{url}', verify=False, json=data)
     except requests.RequestException as e:
         print("Error making request: ", e)
         sys.exit(1)
@@ -110,7 +111,8 @@ def parse_args():
 
 
 def main():
-    parse_args()
+    with GLOBAL_SESSION:
+        parse_args()
 
 
 if __name__ == '__main__':

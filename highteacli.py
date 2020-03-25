@@ -5,11 +5,12 @@ import argparse
 import sys
 import json
 import time
+import threading
 
 import requests
 import urllib3
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -20,11 +21,58 @@ FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
 
 GLOBAL_SESSION = requests.Session()
 
+
+def saturate(it):
+    for val in it:
+        yield val
+    while True:
+        yield val
+
+
+class Spinner:
+    """ Context manager to provide a spinning cursor
+    while validphys performs some other task silently.
+    Example
+    -------
+    >>> from validphys.renametools import Spinner
+    >>> with Spinner():
+    ...     import time
+    ...     time.sleep(5)
+    """
+
+    def __init__(self, delay=0.1):
+        self.spinner_generator = self.spinning_cursor()
+        self.delay = delay
+
+    def spinner_task(self):
+        while not self.event.isSet():
+            sys.stdout.write(next(self.spinner_generator))
+            sys.stdout.flush()
+            time.sleep(self.delay)
+            sys.stdout.write('\b')
+            sys.stdout.flush()
+
+    def __enter__(self):
+        self.event = threading.Event()
+        threading.Thread(target=self.spinner_task).start()
+
+    def __exit__(self, exception, value, tb):
+        self.event.set()
+
+    @staticmethod
+    def spinning_cursor():
+        while True:
+            for cursor in '|/-\\':
+                yield cursor
+
+
 def simple_req(method, url, data=None):
     try:
-        resp = GLOBAL_SESSION.request(method, f'{ENDPOINT}{url}', verify=False, json=data)
+        resp = GLOBAL_SESSION.request(
+            method, f'{ENDPOINT}{url}', verify=False, json=data
+        )
     except requests.RequestException as e:
-        print("Error making request: ", e)
+        print("Error making request: ", e, file=sys.stderr)
         sys.exit(1)
     try:
         resp.raise_for_status()
@@ -34,7 +82,7 @@ def simple_req(method, url, data=None):
         except Exception:
             errdata = str(e)
 
-        print("Server returned error: ", errdata)
+        print("Server returned error: ", errdata, file=sys.stderr)
         sys.exit(1)
     return resp.json()
 
@@ -77,13 +125,10 @@ def check_status(token):
 
 
 def wait_token(token):
-    for timeout in FIBO:
-        check_status(token)
-        time.sleep(timeout)
-
-    while True:
-        check_status(token)
-        time.sleep(timeout)
+    with Spinner():
+        for timeout in saturate(FIBO):
+            check_status(token)
+            time.sleep(timeout)
 
 
 def parse_args():

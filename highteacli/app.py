@@ -1,25 +1,16 @@
-"""
-A command line interface for the high energy theory database.
-"""
 import argparse
 import sys
 import json
 import time
 import threading
 
-import requests
-import urllib3
+from highteacli import apiactions
 
-__version__ = '0.2'
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
 
 
 FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
-
-GLOBAL_SESSION = requests.Session()
 
 
 def saturate(it):
@@ -66,34 +57,13 @@ class Spinner:
                 yield cursor
 
 
-def simple_req(method, url, data=None):
-    try:
-        resp = GLOBAL_SESSION.request(
-            method, f'{ENDPOINT}{url}', verify=False, json=data
-        )
-    except requests.RequestException as e:
-        print("Error making request: ", e, file=sys.stderr)
-        sys.exit(1)
-    try:
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        try:
-            errdata = f'{e}. {resp.json()}'
-        except Exception:
-            errdata = str(e)
-
-        print("Server returned error: ", errdata, file=sys.stderr)
-        sys.exit(1)
-    return resp.json()
-
-
 def list_pdfs():
-    lpdfs = simple_req('get', 'available_pdfs')
+    lpdfs = apiactions.list_pdfs()
     print('\n'.join(lpdfs))
 
 
 def list_processes():
-    lproc = simple_req('get', 'processes')
+    lproc = apiactions.list_processes()
     print('\n'.join(lproc))
 
 
@@ -103,15 +73,15 @@ def make_hist(proc, fname):
     else:
         with open(fname) as f:
             data = json.load(f)
-    resp = simple_req('post', f'processes/{proc}/hist', data=data)
+    resp = apiactions.request_hist(proc, data)
     token = resp['token']
     print(f"Processing request. The token is {token}.", file=sys.stderr)
-    print(f"Wait for the result here or run\nhighteacli token {token}", file=sys.stderr)
+    print(f"Wait for the result here or run\n\n    highteacli token {token}\n", file=sys.stderr)
     wait_token(token)
 
 
 def check_status(token):
-    res = simple_req('get', f'token/{token}')
+    res = apiactions.check_token(token)
     st = res['status']
     if st in ('pending', 'runnung'):
         print(f'\bstatus: {st}', file=sys.stderr)
@@ -156,8 +126,7 @@ def parse_args():
 
 
 def main():
-    with GLOBAL_SESSION:
-        parse_args()
+    parse_args()
 
 
 if __name__ == '__main__':

@@ -15,4 +15,4 @@ requires = [
 requires-python = ">3.6"
 
 [tool.flit.scripts]
-highteacli = "app:main"
+highteacli = "highteacli.app:main"

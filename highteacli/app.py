@@ -7,16 +7,6 @@ import threading
 from highteacli import apiactions
 
 
-FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
-
-
-def saturate(it):
-    for val in it:
-        yield val
-    while True:
-        yield val
-
-
 class Spinner:
     """ Context manager to provide a spinning cursor
     while validphys performs some other task silently.
@@ -83,6 +73,9 @@ class CommandLineApp:
 
     def check_status(self, token):
         res = self.api.check_token(token)
+        self.handle_token_result(res)
+
+    def handle_token_result(self, res):
         st = res['status']
         if st in ('pending', 'runnung'):
             print(f'\bstatus: {st}', file=sys.stderr)
@@ -96,9 +89,8 @@ class CommandLineApp:
 
     def wait_token(self, token):
         with Spinner():
-            for timeout in saturate(FIBO):
-                self.check_status(token)
-                time.sleep(timeout)
+            for res in self.api.wait_token_impl(token):
+                self.handle_token_result(res)
 
 
 def main():

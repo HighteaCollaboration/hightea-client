@@ -1,4 +1,5 @@
 import time
+import json
 
 import requests
 
@@ -50,11 +51,11 @@ class API:
 
     def wait_token(self, token):
         for token_res in self.wait_token_impl(token):
-            st = token_res['stauts']
+            st = token_res['status']
             if st == 'errored':
                 raise RuntimeError("Bad status")
             elif st == 'completed':
-                return token_res['result']
+                return json.loads(token_res['result'])
 
     def list_pdfs(self):
         return self.simple_req('get', 'available_pdfs')

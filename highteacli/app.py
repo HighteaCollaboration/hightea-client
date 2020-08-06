@@ -7,9 +7,6 @@ import threading
 from highteacli import apiactions
 
 
-ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
-
-
 FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
 
 
@@ -57,51 +54,54 @@ class Spinner:
                 yield cursor
 
 
-def list_pdfs():
-    lpdfs = apiactions.list_pdfs()
-    print('\n'.join(lpdfs))
+class CommandLineApp:
+    def __init__(self):
+        self.api = apiactions.API()
+
+    def list_pdfs(self):
+        lpdfs = self.api.list_pdfs()
+        print('\n'.join(lpdfs))
+
+    def list_processes(self):
+        lproc = self.api.list_processes()
+        print('\n'.join(lproc))
+
+    def make_hist(self, proc, fname):
+        if fname == '-':
+            data = json.load(sys.stdin)
+        else:
+            with open(fname) as f:
+                data = json.load(f)
+        resp = self.api.request_hist(proc, data)
+        token = resp['token']
+        print(f"Processing request. The token is {token}.", file=sys.stderr)
+        print(
+            f"Wait for the result here or run\n\n    highteacli token {token}\n",
+            file=sys.stderr,
+        )
+        self.wait_token(token)
+
+    def check_status(self, token):
+        res = self.api.check_token(token)
+        st = res['status']
+        if st in ('pending', 'runnung'):
+            print(f'\bstatus: {st}', file=sys.stderr)
+        elif st == 'errored':
+            print("Token errored", file=sys.stderr)
+            sys.exit(1)
+        elif st == 'completed':
+            print("Token completed", file=sys.stderr)
+            print(res['result'])
+            sys.exit(0)
+
+    def wait_token(self, token):
+        with Spinner():
+            for timeout in saturate(FIBO):
+                self.check_status(token)
+                time.sleep(timeout)
 
 
-def list_processes():
-    lproc = apiactions.list_processes()
-    print('\n'.join(lproc))
-
-
-def make_hist(proc, fname):
-    if fname == '-':
-        data = json.load(sys.stdin)
-    else:
-        with open(fname) as f:
-            data = json.load(f)
-    resp = apiactions.request_hist(proc, data)
-    token = resp['token']
-    print(f"Processing request. The token is {token}.", file=sys.stderr)
-    print(f"Wait for the result here or run\n\n    highteacli token {token}\n", file=sys.stderr)
-    wait_token(token)
-
-
-def check_status(token):
-    res = apiactions.check_token(token)
-    st = res['status']
-    if st in ('pending', 'runnung'):
-        print(f'\bstatus: {st}', file=sys.stderr)
-    elif st == 'errored':
-        print("Token errored", file=sys.stderr)
-        sys.exit(1)
-    elif st == 'completed':
-        print("Token completed", file=sys.stderr)
-        print(res['result'])
-        sys.exit(0)
-
-
-def wait_token(token):
-    with Spinner():
-        for timeout in saturate(FIBO):
-            check_status(token)
-            time.sleep(timeout)
-
-
-def parse_args():
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(title='commands', dest='command')
     commands.add_parser('lproc', help='List available processes')
@@ -113,20 +113,17 @@ def parse_args():
     token_cmd.add_argument('token', help='a token that has been requested')
     ns = parser.parse_args()
     cmd = ns.command
+    app = CommandLineApp()
     if cmd == 'lpdf':
-        list_pdfs()
+        app.list_pdfs()
     elif cmd == 'lproc':
-        list_processes()
+        app.list_processes()
     elif cmd == 'hist':
         pname = ns.process
         fname = ns.file
-        make_hist(pname, fname)
+        app.make_hist(pname, fname)
     elif cmd == 'token':
-        wait_token(ns.token)
-
-
-def main():
-    parse_args()
+        app.wait_token(ns.token)
 
 
 if __name__ == '__main__':

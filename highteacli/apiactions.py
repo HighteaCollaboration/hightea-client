@@ -23,7 +23,7 @@ class API:
     def __init__(self):
         self.session = requests.Session()
 
-    def simple_req(self, method, url, data=None):
+    def simple_req_no_json(self, method, url, data=None):
         try:
             resp = self.session.request(method, f'{ENDPOINT}{url}', json=data)
         except requests.RequestException as e:
@@ -37,7 +37,10 @@ class API:
                 errdata = str(e)
 
             raise RequestProblem(f"Server returned error: {errdata}") from e
-        return resp.json()
+        return resp
+
+    def simple_req(self, method, url, data=None):
+        return self.simple_req_no_json(method, url, data).json()
 
     def wait_token_impl(self, token):
         for timeout in saturate(FIBO):
@@ -49,13 +52,25 @@ class API:
             elif st in ('errored', 'completed'):
                 return
 
-    def wait_token(self, token):
+    def wait_token_json(self, token):
         for token_res in self.wait_token_impl(token):
             st = token_res['status']
             if st == 'errored':
                 raise RuntimeError("Bad status")
             elif st == 'completed':
                 return json.loads(token_res['result'])
+
+    def get_plot(self, token):
+        resp = self.simple_req_no_json('get', f'{token}/plot')
+        return resp.content
+
+    def wait_token_plot(self, token):
+        for token_res in self.wait_token_impl(token):
+            st = token_res['status']
+            if st == 'errored':
+                raise RuntimeError("Bad status")
+            elif st == 'completed':
+                return self.get_plot(token)
 
     def list_pdfs(self):
         return self.simple_req('get', 'available_pdfs')

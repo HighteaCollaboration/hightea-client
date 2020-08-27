@@ -56,7 +56,7 @@ class CommandLineApp:
         lproc = self.api.list_processes()
         print('\n'.join(lproc))
 
-    def make_hist(self, proc, fname):
+    def make_hist(self, proc, fname, do_plot):
         if fname == '-':
             data = json.load(sys.stdin)
         else:
@@ -69,28 +69,42 @@ class CommandLineApp:
             f"Wait for the result here or run\n\n    highteacli token {token}\n",
             file=sys.stderr,
         )
-        self.wait_token(token)
+        self.wait_token(token, do_plot)
 
     def check_status(self, token):
         res = self.api.check_token(token)
-        self.handle_token_result(res)
+        self.handle_token_result(res, token, do_plot=False)
 
-    def handle_token_result(self, res):
+    def _wait_token_impl(self, res):
         st = res['status']
         if st in ('pending', 'runnung'):
             print(f'\bstatus: {st}', file=sys.stderr)
+            return False
         elif st == 'errored':
             print("Token errored", file=sys.stderr)
             sys.exit(1)
         elif st == 'completed':
             print("Token completed", file=sys.stderr)
+            return True
+
+    def handle_token_result(self, res, token, do_plot):
+        if self._wait_token_impl(res):
             print(res['result'])
+            if do_plot:
+                self._handle_token_plot(token)
             sys.exit(0)
 
-    def wait_token(self, token):
+    def _handle_token_plot(self, token):
+        bts = self.api.get_plot(token)
+        fname = f'{token}.png'
+        with open(fname, 'wb') as f:
+            f.write(bts)
+        print("\nHistogram plot writen to", fname, file=sys.stderr)
+
+    def wait_token(self, token, do_plot):
         with Spinner():
             for res in self.api.wait_token_impl(token):
-                self.handle_token_result(res)
+                self.handle_token_result(res, token, do_plot)
 
 
 def main():
@@ -101,8 +115,14 @@ def main():
     hist = commands.add_parser('hist', help='make and histogram')
     hist.add_argument('process', help='process to compute the histogram for')
     hist.add_argument('file', help='JSON file with the hisogram specification')
+    hist.add_argument(
+        '--plot', '-p', action='store_true', help="Save a simple plot for 1D histograms"
+    )
     token_cmd = commands.add_parser('token', help='query the status of a token')
     token_cmd.add_argument('token', help='a token that has been requested')
+    token_cmd.add_argument(
+        '--plot', '-p', action='store_true', help="Save a simple plot for 1D histograms"
+    )
     ns = parser.parse_args()
     cmd = ns.command
     app = CommandLineApp()
@@ -113,9 +133,11 @@ def main():
     elif cmd == 'hist':
         pname = ns.process
         fname = ns.file
-        app.make_hist(pname, fname)
+        do_plot = ns.plot
+        app.make_hist(pname, fname, do_plot)
     elif cmd == 'token':
-        app.wait_token(ns.token)
+        do_plot = ns.plot
+        app.wait_token(ns.token, do_plot)
 
 
 if __name__ == '__main__':

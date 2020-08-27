@@ -33,6 +33,9 @@ The most frequent command is:
 highteacly hist <PROCESS NAME> <PATH TO THE JSON FILE FROM THE CURRENT DIRECTORY>
 ```
 
+For 1D histograms, you can add the `--plot` argument to obtain a quick
+visualization of the result.
+
 The format is described in detail in the [documentation], and
 [examples] are provided.
 
@@ -62,12 +65,25 @@ Now we can query the `tests` ttbar dataset as follows
  {"mean": [[[[-2.0, -1.0]], 297.7068930126204], [[[-1.0, 0.0]], -165.29122920133463], [[[0.0, 1.0]], 202.0481155648153], [[[1.0, 2.0]], 301.92919831259667]], "std": [[[[-2.0, -1.0]], 225.39857447188203], [[[-1.0, 0.0]], 305.63359250045437], [[[0.0, 1.0]], 297.698081581902], [[[1.0, 2.0]], 240.26288960758953]]}
 ```
 
-The JSON output can be easily redirected to a file for further
-processing:
+You can recover data on an existing token, possibly with a simple
+visualization for 1D histograms, which will be written in the current
+directory.
+
+```
+highteacli token 866dd3c269f211eaa66d0242ac120003 --plot
+|Token completed
+{"mean": [[[[-2.0, -1.0]], 297.7068930126203], [[[-1.0, 0.0]], -165.29122920133463], [[[0.0, 1.0]], 202.0481155648153], [[[1.0, 2.0]], 301.9291983125968]], "std": [[[[-2.0, -1.0]], 225.39857447188203], [[[-1.0, 0.0]], 305.6335925004544], [[[0.0, 1.0]], 297.6980815819021], [[[1.0, 2.0]], 240.2628896075895]], "version_id": "8aece14b38d6adbc18a027b4f87b958e7e0f1f606bb53442dd935cc8f360f251"}
+/
+Histogram plot writen to 866dd3c269f211eaa66d0242ac120003.png
+
+```
+
+The JSON output can be redirected from the standard output to a file.
 
 ```
 highteacli hist tests test.json  > res.json
 ```
+
 
 
 The full set of options can be seen with the `--help` flag.

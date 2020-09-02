@@ -44,9 +44,26 @@ class Spinner:
                 yield cursor
 
 
+class ErrorPrintAPI(apiactions.API):
+    """Wrap request method to print the error nicely"""
+
+    def simple_req_no_json(self, *args, **kwargs):
+        try:
+            return super().simple_req_no_json(*args, **kwargs)
+        except apiactions.RequestProblem as e:
+            cause = e.__cause__
+            print(cause, file=sys.stderr)
+            try:
+                msg = cause.response.json()['detail'][0]['msg']
+                print(msg, file=sys.stderr)
+            except Exception:
+                pass
+            sys.exit(1)
+
+
 class CommandLineApp:
     def __init__(self):
-        self.api = apiactions.API()
+        self.api = ErrorPrintAPI()
 
     def list_pdfs(self):
         lpdfs = self.api.list_pdfs()
@@ -81,7 +98,7 @@ class CommandLineApp:
             print(f'\bstatus: {st}', file=sys.stderr)
             return False
         elif st == 'errored':
-            print("Token errored", file=sys.stderr)
+            print("Token errored\n", res['error_string'], file=sys.stderr)
             sys.exit(1)
         elif st == 'completed':
             print("Token completed", file=sys.stderr)

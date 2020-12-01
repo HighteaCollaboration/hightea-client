@@ -5,6 +5,9 @@ import requests
 
 ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
 
+__all__ = ('RequestProblem', 'ENDPOINT', 'API')
+
+
 FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
 
 
@@ -16,14 +19,25 @@ def saturate(it):
 
 
 class RequestProblem(Exception):
-    pass
+    """Base error that will be raised in case of problematic interactions with
+    the API. Use the ``__cause__`` attributte of the error to inspect the
+    underlying problem."""
 
 
 class API:
+    """Helper class to interact with the Hightea API.
+    """
+
     def __init__(self):
         self.session = requests.Session()
 
     def simple_req_no_json(self, method, url, data=None):
+        """Call the endpoint with the specified parameters and return the
+        response object. Raise a ``RequestProblem`` error in case of failure.
+        The ``method`` and ``url`` parameters are passed to
+        :py:func:`requests.Request.request`. The ``data`` object is encoded as
+        JSON.
+        """
         try:
             resp = self.session.request(method, f'{ENDPOINT}{url}', json=data)
         except requests.RequestException as e:
@@ -40,9 +54,28 @@ class API:
         return resp
 
     def simple_req(self, method, url, data=None):
+        """Call the endpoint with the specified parameters and return the JSON response.
+        See :py:func:`API.simple_req_no_json`.
+
+        """
         return self.simple_req_no_json(method, url, data).json()
 
     def wait_token_impl(self, token):
+        """Block for the specified token until it is completed.
+        Use this method to implement interactive behaviours while the
+        computation is in progress. Otherwise use higher level methods such as
+        :py:func`API.wait_token_json` or :py:func`API.wait_token_plot`.
+
+        Parameters
+        ------
+        token: str
+            A token represnting a previous result, to wait for.
+
+        Yields
+        ------
+        token_status: dict
+            A dictionary containing information relative to the token.
+        """
         for timeout in saturate(FIBO):
             res = self.check_token(token)
             yield res
@@ -52,7 +85,42 @@ class API:
             elif st in ('errored', 'completed'):
                 return
 
+    def get_plot(self, token):
+        """
+        Return an histogram plot for a computed token.
+
+        Parameters
+        ----------
+        token: str
+            A token represnting a previous result, to wait for.
+
+        Returns
+        -------
+        plot: bytes
+            A byte string representing a figure in the PNG format.
+
+        Notes
+        -----
+        If the computation corresponding to the token is not finalized, this
+        method will fail. Use :py:func:`API.wait_token_plot` to block until the
+        result is ready.
+        """
+        resp = self.simple_req_no_json('get', f'{token}/plot')
+        return resp.content
+
     def wait_token_json(self, token):
+        """Block for the specified token and return a JSON result.
+
+        Parameters
+        ----------
+        token: str
+            A token represnting a previous result, to wait for.
+
+        Returns
+        -------
+        result: dict
+            A dictionary representing the result of the computation.
+        """
         for token_res in self.wait_token_impl(token):
             st = token_res['status']
             if st == 'errored':
@@ -60,11 +128,22 @@ class API:
             elif st == 'completed':
                 return json.loads(token_res['result'])
 
-    def get_plot(self, token):
-        resp = self.simple_req_no_json('get', f'{token}/plot')
-        return resp.content
 
     def wait_token_plot(self, token):
+        """
+        Block until the specified token is available. When it is, return an
+        histogram representation.
+
+        Parameters
+        ----------
+        token: str
+            A token represnting a previous result, to wait for.
+
+        Returns
+        -------
+        plot: bytes
+            A byte string representing a figure in the PNG format.
+        """
         for token_res in self.wait_token_impl(token):
             st = token_res['status']
             if st == 'errored':
@@ -73,13 +152,42 @@ class API:
                 return self.get_plot(token)
 
     def list_pdfs(self):
+        """
+        List the available PDF for central value computations.
+
+        Returns
+        -------
+        pdfs: list
+            A list of LHAPDF ids.
+        """
         return self.simple_req('get', 'available_pdfs')
 
     def list_processes(self):
+        """
+        List the processes avaialable in the server.
+
+        Returns
+        -------
+        processes: list
+            A list of processes
+        """
         return self.simple_req('get', 'processes')
 
     def request_hist(self, proc, data):
         return self.simple_req('post', f'processes/{proc}/hist', data=data)
 
     def check_token(self, token):
+        """
+        Check information
+
+        Parameters
+        ----------
+        token: str
+            A token represnting a previous result, to wait for.
+
+        Returns
+        -------
+        info: dict
+            A dictionary with the information on a specific token.
+        """
         return self.simple_req('get', f'token/{token}')

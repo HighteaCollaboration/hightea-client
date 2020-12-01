@@ -86,7 +86,7 @@ class CommandLineApp:
         token = resp['token']
         print(f"Processing request. The token is {token}.", file=sys.stderr)
         print(
-            f"Wait for the result here or run\n\n    highteacli token {token}\n",
+            f"Wait for the result here or run\n\n    hightea token {token}\n",
             file=sys.stderr,
         )
         self.wait_token(token, do_plot, json_fname, plot_fname)

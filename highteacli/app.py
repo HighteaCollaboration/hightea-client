@@ -140,9 +140,13 @@ class CommandLineApp:
         print("\nHistogram plot writen to", fname, file=sys.stderr)
 
     def wait_token(self, token, do_plot, json_fname, plot_fname):
-        with Spinner():
-            for res in self.api.wait_token_impl(token):
-                self.handle_token_result(res, token, do_plot, json_fname, plot_fname)
+        try:
+            with Spinner():
+                for res in self.api.wait_token_impl(token):
+                    self.handle_token_result(res, token, do_plot, json_fname, plot_fname)
+        except KeyboardInterrupt:
+            print("Wait cancelled. Appending token to stdout.", file=sys.stderr)
+            print(token)
 
 
 def _add_common_args(parser):

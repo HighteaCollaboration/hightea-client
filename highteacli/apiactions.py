@@ -2,6 +2,8 @@ import time
 import json
 
 import requests
+from requests.exceptions import ConnectionError
+from urllib3.exceptions import ProtocolError
 
 ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
 
@@ -41,6 +43,11 @@ class API:
         try:
             resp = self.session.request(method, f'{ENDPOINT}{url}', json=data)
         except requests.RequestException as e:
+            # https://github.com/urllib3/urllib3/pull/1911
+            if isinstance(e, ConnectionError) and e.args:
+                if isinstance(e.args[0], ProtocolError):
+                    if e.args[0].args and e.args[0].args[0] == 'Connection aborted.':
+                        return self.simple_req_no_json(method, url, data)
             raise RequestProblem(f"Error making request: {e}") from e
         try:
             resp.raise_for_status()

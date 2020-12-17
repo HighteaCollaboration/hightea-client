@@ -5,9 +5,9 @@ import requests
 from requests.exceptions import ConnectionError
 from urllib3.exceptions import ProtocolError
 
-ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
+DEFAULT_ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
 
-__all__ = ('RequestProblem', 'ENDPOINT', 'API')
+__all__ = ('RequestProblem', 'DEFAULT_ENDPOINT', 'API')
 
 
 FIBO = [0, 1, 1, 2, 3, 5, 8, 13, 21]
@@ -30,8 +30,11 @@ class API:
     """Helper class to interact with the Hightea API.
     """
 
-    def __init__(self):
+    def __init__(self, *, endpoint=DEFAULT_ENDPOINT):
         self.session = requests.Session()
+        if not endpoint.endswith('/'):
+            endpoint = endpoint+'/'
+        self.endpoint = endpoint
 
     def simple_req_no_json(self, method, url, data=None):
         """Call the endpoint with the specified parameters and return the
@@ -41,7 +44,7 @@ class API:
         JSON.
         """
         try:
-            resp = self.session.request(method, f'{ENDPOINT}{url}', json=data)
+            resp = self.session.request(method, f'{self.endpoint}{url}', json=data)
         except requests.RequestException as e:
             # https://github.com/urllib3/urllib3/pull/1911
             if isinstance(e, ConnectionError) and e.args:

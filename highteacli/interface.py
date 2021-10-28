@@ -26,15 +26,15 @@ class hightea:
     metadata = {}
     valid_contributions = []
     custom_variables = {}
-  
+
     def __init__(self):
         self.api = API()
         self.histograms = {0:{'json':{'name':'default'}}}
-        self.proc = '' 
+        self.proc = ''
         self.metadata = {}
         self.valid_contributions = []
         self.custom_variables = {}
- 
+
     ###########################################################################
     # internal member functions                                               #
     ###########################################################################
@@ -103,7 +103,7 @@ class hightea:
             return True
         else:
             return False
-  
+
     def is_valid_bin_spec(self, bin_spec):
         """
         Return true if bin is correct 1D bin specification.
@@ -112,7 +112,7 @@ class hightea:
             return True
         else:
             return False
-  
+
     def is_valid_process(self, proc):
         """
         Return true if proc is a string
@@ -121,7 +121,7 @@ class hightea:
             return True
         else:
             return False
-  
+
     def is_valid_cut(self, cut):
         """
         Return true if cut is a valid cut
@@ -151,7 +151,7 @@ class hightea:
                 else:
                     print(proc.replace('processes/',''))
 
- 
+
     def list_pdfs(self):
         """
         Request the list of available pdfs from the server
@@ -169,7 +169,7 @@ class hightea:
         The first routine to be called. Note: it wipes all data stored
         """
         self.clear()
- 
+
 
     def clear(self):
         """
@@ -226,7 +226,7 @@ class hightea:
             return new_id
         else:
            self.histograms[new_id]['json']['name'] = 'default'
-           return new_id 
+           return new_id
 
 
     def request(self,hid=-1):
@@ -245,11 +245,11 @@ class hightea:
 
         # first check if all histograms have a process specified
         # and compile the variation list if requested.
-        for it in ids: 
+        for it in ids:
             self.compile_variations(it)
             self.histograms[it]['json']['custom_variables'] = self.custom_variables
 
-        # submit all processes               
+        # submit all processes
         for it in ids:
             json = self.histograms[it]['json']
             resp = self.api.simple_req('post',
@@ -323,7 +323,7 @@ class hightea:
         """
         Add a description to a histogram, this name can be used to easily organize
         your results.
-        """ 
+        """
         self.histograms[hid]['json']['name'] = name
 
 
@@ -343,7 +343,7 @@ class hightea:
             self.histograms[hid]['json']['contributions'] = [con]
         else:
             success = False
-  
+
         if success == False:
             print('WARNING: contributions(con,hid)')
             print(' -> con has to be a single string or a list of strings.')
@@ -368,12 +368,12 @@ class hightea:
             self.histograms[hid]['json']['binning'] = [binning]
         else:
             success = False
-  
+
         if success == False:
             print('WARNING: binning(binning,hid)')
             print(' -> binning has to be a single bin specification or a list.')
             print(' -> Histogram '+str(hid)+' has not been changed')
-  
+
 
     def binning(self, variable:str, binning:list, hid=0):
         """
@@ -401,7 +401,7 @@ class hightea:
         factorization (muF) scale
         """
         self.histograms[hid]['json']['pdf'] = pdf
-  
+
     def scale_variation(self, variation_type:str, hid=0):
         """
         Specify the type of scale variations:
@@ -414,7 +414,7 @@ class hightea:
                 self.histograms[hid]['variation'].append(variation_type)
             else:
                 self.histograms[hid]['variation'] = [variation_type]
-  
+
     def pdf_variation(self, variation_type:str, hid=0):
         """
         Specify the type of pdf variation:
@@ -534,7 +534,7 @@ class hightea:
     ###########################################################################
     # file operations                                                         #
     ###########################################################################
-  
+
     def read_json(self,filename,hid=0):
         """
         Read in histogram specification from json file

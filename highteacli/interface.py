@@ -1,5 +1,5 @@
 import json
-from hightea.apiactions import API
+from .apiactions import API
 import numpy as np
 from datetime import datetime
 import time

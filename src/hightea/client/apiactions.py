@@ -115,7 +115,7 @@ class API:
         method will fail. Use :py:func:`API.wait_token_plot` to block until the
         result is ready.
         """
-        resp = self.simple_req_no_json('get', f'{token}/plot')
+        resp = self.simple_req_no_json('get', f'token/{token}/plot')
         return resp.content
 
     def wait_token_json(self, token):
@@ -137,7 +137,6 @@ class API:
                 raise RuntimeError("Bad status")
             elif st == 'completed':
                 return json.loads(token_res['result'])
-
 
     def wait_token_plot(self, token):
         """

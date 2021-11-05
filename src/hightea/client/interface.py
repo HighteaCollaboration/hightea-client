@@ -16,7 +16,7 @@ def saturate(it):
 #define export routines to YODA,yaml,csv,JSON
 #implement variable load from file
 
-class hightea:
+class Interface:
     ###########################################################################
     # 'constructor'                                                           #
     ###########################################################################

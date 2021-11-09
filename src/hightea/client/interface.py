@@ -50,7 +50,7 @@ class Interface:
         print('Default pdf       : ',metadata['pdf_set'],'/',
               metadata['pdf_member'])
         print('Contributions     : ',
-              list(metadata['contribution_groups'].keys()))
+              list(metadata.get('contribution_groups',{}).keys()))
         print('Predefined variables')
         for var in metadata['variables'].keys():
             print('  ','{0: <10}'.format(var),' : ',metadata['variables'][var])
@@ -189,7 +189,7 @@ class Interface:
             self.proc = 'processes/'+proc
             self.metadata = self.api.simple_req('get',self.proc)
             if verbose: self.print_metadata(self.proc,self.metadata)
-            self.valid_contributions = list(self.metadata['contribution_groups'].keys())
+            self.valid_contributions = list(self.metadata.get('contribution_groups',{}).keys())
         else:
             print('WARNING: process(proc)')
             print(' -> specified proc not in the correct format (string).')

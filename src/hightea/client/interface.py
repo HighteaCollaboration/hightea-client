@@ -291,10 +291,13 @@ class Interface:
 
         # first check if all histograms have a process specified
         # and compile the variation list if requested.
-        for it in ids: self._finalize_request(it)
+        for it in ids:
+            if 'requests' in self.histograms[it]: continue
+            self._finalize_request(it)
 
         # submit all processes
         for it in ids:
+            if 'requests' in self.histograms[it]: continue
             self.histograms[it]['requests'] = []
             if 'variations' in self.histograms[it]:
                  self.histograms[it]['requests'] = []
@@ -363,10 +366,13 @@ class Interface:
 
         # first check if all histograms have a process specified
         # and compile the variation list if requested.
-        for it in ids: self._finalize_request(it)
+        for it in ids:
+            if 'requests' in self.histograms[it]: continue
+            self._finalize_request(it)
 
         # submit all processes
         for it in ids:
+            if 'requests' in self.histograms[it]: continue
             self.histograms[it]['requests'] = []
             if 'variations' in self.histograms[it]:
                  self.histograms[it]['requests'] = []
@@ -526,6 +532,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         self.histograms[hid]['json']['name'] = name
 
 
@@ -540,6 +550,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         success = True
         if type(con) == list:
             for e in con:
@@ -571,6 +585,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         success = True
         if type(binning) == list:
             for e in binning:
@@ -602,6 +620,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         new_bin_spec = {'variable':variable,'bins':binning}
         if 'binning' in self.histograms[hid]['json']:
             self.histograms[hid]['json']['binning'].append(new_bin_spec)
@@ -624,6 +646,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         self.histograms[hid]['json']['muR'] = muR
         self.histograms[hid]['json']['muF'] = muF
 
@@ -639,6 +665,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         self.histograms[hid]['json']['pdf'] = pdf
 
 
@@ -660,6 +690,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         if variation_type == '3-point' or variation_type == '7-point':
             if 'variation' in self.histograms[hid]:
                 self.histograms[hid]['variation'].append(variation_type)
@@ -690,6 +724,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         if variation_type == 'standard' or variation_type == 'reduced':
             if 'variation' in self.histograms[hid]:
                 self.histograms[hid]['variation'].append(variation_type)
@@ -708,6 +746,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         if 'variation' in self.histograms[hid]:
             self.histograms[hid]['variation'].append(variations)
         else:
@@ -731,6 +773,10 @@ class Interface:
             Specification of the histogram to be modified. By default (-1)
             the last added histogram is modified.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         if type(cuts) == str:
             if self._is_valid_cut(cuts):
                 if 'cuts' in self.histograms[hid]['json']:
@@ -751,6 +797,13 @@ class Interface:
         else:
             print("WARNING: "+cut+" is not a valid cut, will be ignored.")
 
+
+    def show_results(self):
+        """Print all results in a human readable form
+        """
+        for it in range(0,len(self.histograms)):
+            print('Histogram ',it)
+            self.show_result(it)
 
     def show_result(self,hid=-1):
         """Print the result in a human readable form
@@ -872,6 +925,10 @@ class Interface:
             Specification of the histogram to be printed. By default (-1)
             the last added histogram is printed.
         """
+        if 'requests' in self.histograms[hid]:
+            print('WARNING: histogram already submitted. Nothing changed')
+            return
+
         self.histograms[hid]['json'] = json.load(filename)
 
 

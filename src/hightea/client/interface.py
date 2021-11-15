@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 import numpy as np
 
-from hightea.client.apiactions import API,FIBO,saturate
+from .apiactions import API,FIBO,saturate
 
 class Interface:
     """High-level user interface to the HighTEA database
@@ -231,6 +231,37 @@ class Interface:
         self.custom_variables[name] = definition
 
 
+    def load_variable_definitions(self, filename:str):
+        """Load variable definitions from file.
+        The specified file is expected to be json dictionary of
+        ``"name":"definition"`` pairs.
+
+        Parameters
+        ----------
+        filename: str
+            The filename containing the definitions.
+        """
+        with open(filename,'r') as fp:
+            new_variables = json.load(fp)
+            for key in new_variables.keys():
+                if not type(new_variables[key]) == str:
+                    print('WARNING: Definition not a string. Not added.')
+                else:
+                    self.custom_variables[key] = new_variables[key]
+
+
+    def store_variable_definitions(self, filename:str):
+        """Store variable definitions to file.
+
+        Parameters
+        ----------
+        filename: str
+            The filename containing the definitions.
+        """
+        with open(filename,'w') as fp:
+            json.dump(self.custom_variables,fp,indent=2)
+
+
     def add_histogram(self, js=None):
         """Add histogram to the job
         The routine will return the histogram identification number which can
@@ -256,7 +287,8 @@ class Interface:
         elif type(js) == dict:
             self.histograms.append({'json':js})
         elif type(js) == str:
-            self.histograms.append({'json':json.load(js)})
+            with open(js,'r') as fp:
+                self.histograms.append({'json':json.load(fp)})
         else:
             print('WARNING: add_histogram(json=None)')
             print(' -> Input not reconised, either input is a filepath or dict.')
@@ -929,7 +961,8 @@ class Interface:
             print('WARNING: histogram already submitted. Nothing changed')
             return
 
-        self.histograms[hid]['json'] = json.load(filename)
+        with open(filename,'r') as fp:
+            self.histograms[hid]['json'] = json.load(fp)
 
 
     def write_json(self,filename:str,hid=-1):

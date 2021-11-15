@@ -5,7 +5,7 @@ import requests
 from requests.exceptions import ConnectionError
 from urllib3.exceptions import ProtocolError
 
-DEFAULT_ENDPOINT = 'https://www.hep.phy.cam.ac.uk:5443/api/'
+DEFAULT_ENDPOINT = 'https://www.hep.phy.cam.ac.uk/hightea/api/'
 
 __all__ = ('RequestProblem', 'DEFAULT_ENDPOINT', 'API')
 
@@ -74,7 +74,7 @@ class API:
         """Block for the specified token until it is completed.
         Use this method to implement interactive behaviours while the
         computation is in progress. Otherwise use higher level methods such as
-        :py:func`API.wait_token_json` or :py:func`API.wait_token_plot`.
+        :py:func:`API.wait_token_json` or :py:func:`API.wait_token_plot`.
 
         Parameters
         ------

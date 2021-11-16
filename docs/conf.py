@@ -18,7 +18,7 @@ import sys
 from recommonmark.transform import AutoStructify
 
 sys.path.insert(0, os.path.abspath('../src/hightea/client/'))
-import validobj
+#import validobj
 
 
 # -- Project information -----------------------------------------------------
@@ -42,7 +42,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'recommonmark',
+    'recommonmark'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -89,7 +89,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 # -- Doctest ------------------------------------------------------------------
 #
 
-doctest_path = [os.path.abspath('../examples')]
+doctest_path = [os.path.abspath('examples')]
 
 # -- Autodoc ------------------------------------------------------------------
 #

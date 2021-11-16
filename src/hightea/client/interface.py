@@ -36,12 +36,12 @@ class Interface:
         """Nicely formatted metadata printout
         """
         print('  ',metadata['name'],'\n')
-        print('Process tag       : ',proc.replace('processes/',''),
+        print('Process tag          : ',proc.replace('processes/',''),
               ' (use for process specification)')
-        print('Default scales    : ',metadata['scales_info'])
-        print('Default pdf       : ',metadata['pdf_set'],'/',
+        print('Default scales      : ',metadata['scales_info'])
+        print('Default pdf         : ',metadata['pdf_set'],'/',
               metadata['pdf_member'])
-        print('Contributions     : ',
+        print('Avail. contributions: ',
               list(metadata.get('contribution_groups',{}).keys()))
         print('Predefined variables')
         for var in metadata['variables'].keys():

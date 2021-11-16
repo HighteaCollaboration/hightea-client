@@ -17,7 +17,7 @@ import os
 import sys
 from recommonmark.transform import AutoStructify
 
-sys.path.insert(0, os.path.abspath('src/hightea/client/'))
+sys.path.insert(0, os.path.abspath('..'))
 #import validobj
 
 
@@ -89,7 +89,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 # -- Doctest ------------------------------------------------------------------
 #
 
-doctest_path = [os.path.abspath('../examples')]
+doctest_path = [os.path.abspath('examples')]
 
 # -- Autodoc ------------------------------------------------------------------
 #

@@ -17,15 +17,15 @@ import os
 import sys
 from recommonmark.transform import AutoStructify
 
-sys.path.insert(0, os.path.abspath('..'))
-import validobj
+sys.path.insert(0, os.path.abspath('../src/hightea/client/'))
+#import validobj
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'HighTea'
-copyright = '2020, Zahari Kassabov'
-author = 'Zahari Kassabov'
+project = 'hightea-client'
+copyright = '2021, High-TEA Collaboration'
+author = 'High-TEA Collaboration'
 
 
 # -- General configuration ---------------------------------------------------
@@ -42,7 +42,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'recommonmark',
+    'recommonmark'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -79,7 +79,7 @@ html_theme = 'sphinx_rtd_theme'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 
 # -- Intersphinx  -------------------------------------------------------------
@@ -89,7 +89,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 # -- Doctest ------------------------------------------------------------------
 #
 
-doctest_path = [os.path.abspath('../examples')]
+doctest_path = [os.path.abspath('examples')]
 
 # -- Autodoc ------------------------------------------------------------------
 #

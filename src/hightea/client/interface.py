@@ -1,6 +1,8 @@
 import json
 import time
+from pathlib import Path
 from datetime import datetime
+import os
 import numpy as np
 
 from .apiactions import API,FIBO,saturate
@@ -9,9 +11,8 @@ class Interface:
     """High-level user interface to the HighTEA database
 
     Examples
-    -------
-    >>> job = hightea()
-    >>> job.start()
+    --------
+    >>> job = hightea('jobname')
     >>> job.process('pp_ttx_13TeV')
     >>> job.add_histogram()
     >>> job.contribution('LO')
@@ -20,13 +21,51 @@ class Interface:
     >>> job.show_result()
     """
 
-    def __init__(self):
+    def __init__(self,name:str ,directory='.', overwrite=False):
+        """Constructor, requires job name.
+
+        If job already exists, job is loaded from the drive.
+
+        Parameters
+        ----------
+        name: str
+            Specifies a job name which needs to be unique. The job's data is
+            stored in directory/<name>.job .
+
+        directory: str, default .
+            Specification of the directory containing job files.
+            If not existing the directory is created.
+
+        overwrite: bool, default False
+            If `True` existing job data is overwritten.
+
+        """
         self.api = API()
-        self.proc = ''
-        self.metadata = {}
-        self.valid_contributions = []
-        self.custom_variables = {}
-        self.histograms = []
+        self.name = name
+        self.directory = directory
+        # create directory in case it doesn't exist
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        Path(directory+'/hightea-jobs/').mkdir(parents=True, exist_ok=True)
+        self.filename = directory+'/hightea-jobs/'+name+'.job'
+
+        if Path(self.filename).is_file() and not overwrite:
+            jsonfile = {}
+            with open(self.filename,'r') as fp:
+                jsonfile = json.load(fp)
+            self.proc = jsonfile['proc']
+            self.valid_contributions = jsonfile['valid_contributions']
+            self.custom_variables = jsonfile['custom_variables']
+            self.histograms = jsonfile['histograms']
+            self.metadata = self.api.simple_req('get',self.proc)
+        else:
+            if overwrite and Path(self.filename).is_file():
+                os.remove(self.filename)
+            self.proc = ''
+            self.metadata = {}
+            self.valid_contributions = []
+            self.custom_variables = {}
+            self.histograms = []
+            self.store()
 
     ###########################################################################
     # internal member functions                                               #
@@ -66,25 +105,36 @@ class Interface:
         mur = 'muR0'
         muf = 'muF0'
         pdf = self.metadata['pdf_set']
+        pdf_member = self.metadata['pdf_member']
         if 'muR' in self.histograms[hid]['json']:
             mur = self.histograms[hid]['json']['muR']
         if 'muF' in self.histograms[hid]['json']:
             muf = self.histograms[hid]['json']['muF']
         if 'pdf' in self.histograms[hid]['json']:
             pdf = self.histograms[hid]['json']['pdf']
+        if 'pdf_member' in self.histograms[hid]['json']:
+            pdf_member = self.histograms[hid]['json']['pdf_member']
 
-        list_of_setups = [mur+','+muf+','+pdf]
+        list_of_setups = [mur+','+muf+','+pdf+','+str(pdf_member)]
         for var in self.histograms[hid]['variation']:
             if var == '3-point':
-                list_of_setups.append(mur+'*2,'+muf+'*2,'+pdf)
-                list_of_setups.append(mur+'/2,'+muf+'/2,'+pdf)
+                list_of_setups.append(mur+'*2,'+muf+'*2,'+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+'/2,'+muf+'/2,'+pdf+','+str(pdf_member))
             if var == '7-point':
-                list_of_setups.append(mur+'*2,'+muf+'*2,'+pdf)
-                list_of_setups.append(mur+'/2,'+muf+'/2,'+pdf)
-                list_of_setups.append(mur+','+muf+'*2,'+pdf)
-                list_of_setups.append(mur+','+muf+'/2,'+pdf)
-                list_of_setups.append(mur+'*2,'+muf+','+pdf)
-                list_of_setups.append(mur+'/2,'+muf+','+pdf)
+                list_of_setups.append(mur+'*2,'+muf+'*2,'+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+'/2,'+muf+'/2,'+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+','+muf+'*2,'+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+','+muf+'/2,'+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+'*2,'+muf+','+pdf+','+str(pdf_member))
+                list_of_setups.append(mur+'/2,'+muf+','+pdf+','+str(pdf_member))
+            if var == 'pdf':
+                
+                if self.metadata['available_pdfs'][pdf]['error_method'] == 'none':
+                    print('No PDF variation available for PDF set: '+pdf)
+                else:
+                    nmembers = self.metadata['available_pdfs'][pdf]['nmembers']
+                    for it in range(0,nmembers):
+                        list_of_setups.append(mur+','+muf+','+pdf+','+str(it))
             if type(var) == list:
                 for setup in var:
                     list_of_setups.append(setup)
@@ -169,26 +219,6 @@ class Interface:
     # job interactions                                                        #
     ###########################################################################
 
-    def start(self):
-        """Prepare the instance. The first routine to be called.
-
-        Notes
-        -----
-        All data stored will be wiped on call.
-        """
-        self.clear()
-
-
-    def clear(self):
-        """Restore default state and wipe all stored data.
-        """
-        self.histograms = []
-        self.proc = ''
-        self.metadata = {}
-        self.valid_contributions = []
-        self.custom_variables = {}
-
-
     def process(self, proc:str, verbose=True):
         """Define process for this instance.
         A request to the server is performed and the process' metadata is
@@ -212,6 +242,7 @@ class Interface:
             print('WARNING: process(proc)')
             print(' -> specified proc not in the correct format (string).')
             print(' -> Nothing has been changed.')
+        self.store()
 
 
     def define_new_variable(self, name:str, definition:str):
@@ -229,6 +260,7 @@ class Interface:
             conventions of the Python language.
         """
         self.custom_variables[name] = definition
+        self.store()
 
 
     def load_variable_definitions(self, filename:str):
@@ -281,6 +313,11 @@ class Interface:
         histogram_id: int
             A number identifing the histogram.
         """
+        if len(self.histograms) > 0:
+            if 'requests' in self.histograms[-1]:
+                print('WARNING: job already submitted. Nothing changed')
+                return
+
         new_id = len(self.histograms)
         if js == None:
             self.histograms.append({'json':{'name':'request '+str(new_id)}})
@@ -296,124 +333,56 @@ class Interface:
             return -1;
 
         if 'name' in self.histograms[new_id]['json']:
+            self.store()
             return new_id
         else:
            self.histograms[new_id]['json']['name'] = 'request '+str(new_id)
+           self.store()
            return new_id
 
 
-    def request(self,hid=-1):
+    def request(self):
         """Create and submit requests for all defined histograms and wait for the answer.
         The results is stored.
-
-        Parameters
-        ----------
-        hid: int, default -1
-            A histogram id can be specified to submit just a single histogram. For
-            `-1` (default) all histograms are submitted.
         """
-
-        ids = []
-        if hid == -1:
-            ids = list(range(0,len(self.histograms)))
-        elif type(hid) == int:
-            ids = [hid]
-        elif type(hid) == list:
-            ids = hid
-
-        # first check if all histograms have a process specified
-        # and compile the variation list if requested.
-        for it in ids:
-            if 'requests' in self.histograms[it]: continue
-            self._finalize_request(it)
-
-        # submit all processes
-        for it in ids:
-            if 'requests' in self.histograms[it]: continue
-            self.histograms[it]['requests'] = []
-            if 'variations' in self.histograms[it]:
-                 self.histograms[it]['requests'] = []
-                 for setup in self.histograms[it]['variations']:
-                     js = self.histograms[it]['json'].copy()
-                     muRval, muFval, pdfval = setup.split(',')
-                     js['muR'] = muRval
-                     js['muF'] = muFval
-                     js['pdf'] = pdfval
-
-                     resp = self.api.simple_req('post',
-                                                self.proc+'/hist',
-                                                data=js)
-                     self.histograms[it]['requests'].append(
-                       [resp['token'],'submitted']
-                     )
-            else:
-                js = self.histograms[it]['json'].copy()
-                resp = self.api.simple_req('post',
-                                           self.proc+'/hist',
-                                           data=js)
-                self.histograms[it]['requests'].append(
-                       [resp['token'],'submitted']
-                     )
-
-        print('request submitted : ',datetime.now())
-
+        self.submit_request()
         for timeout in saturate(FIBO):
-            is_waiting = False
-            for it in ids:
-                for jt, req in enumerate(self.histograms[it]['requests']):
-                    if req[1] == 'submitted':
-                        resp = self.api.simple_req('get',f'token/'+req[0])
-                        if resp['status'] == 'completed':
-                            self.histograms[it]['requests'][jt][1] =  json.loads(resp['result'])
-                        elif resp == 'errored':
-                            print('error occured    : ',datetime.now())
-                            self.histograms[it]['requests'][jt][1] = 'error'
-                        else:
-                            is_waiting = True;
-            if is_waiting == True:
-                time.sleep(timeout)
+            if self.request_result():
+                print('request finished  : ',datetime.now())
+                return
             else:
-              print('request finished  : ',datetime.now())
-              return
+                time.sleep(timeout)
 
 
-    def submit_request(self,hid=-1):
+    def submit_request(self):
         """Submit request to database but don't wait for the answer.
         The answer can be received via request_result().
-
-        Parameters
-        ----------
-        hid: int, default -1
-            A histogram id can be specified to submit just a single histogram. For
-            `-1` (default) all histograms are submitted.
         """
 
-        ids = []
-        if hid == -1:
-            ids = list(range(0,len(self.histograms)))
-        elif type(hid) == int:
-            ids = [hid]
-        elif type(hid) == list:
-            ids = hid
+        if len(self.histograms) > 0:
+            if 'requests' in self.histograms[-1]:
+                print('WARNING: job already submitted. Nothing submitted.')
+                return
+        else:
+            print('WARNING: job does not contain histogram. Nothing submitted.')
+            return
 
-        # first check if all histograms have a process specified
-        # and compile the variation list if requested.
-        for it in ids:
-            if 'requests' in self.histograms[it]: continue
-            self._finalize_request(it)
+        ids = list(range(0,len(self.histograms)))
+
+        # Finalize requests -> compile variations.
+        for it in ids: self._finalize_request(it)
 
         # submit all processes
         for it in ids:
-            if 'requests' in self.histograms[it]: continue
             self.histograms[it]['requests'] = []
             if 'variations' in self.histograms[it]:
-                 self.histograms[it]['requests'] = []
                  for setup in self.histograms[it]['variations']:
                      js = self.histograms[it]['json'].copy()
-                     muRval, muFval, pdfval = setup.split(',')
+                     muRval, muFval, pdfval, pdfmval = setup.split(',')
                      js['muR'] = muRval
                      js['muF'] = muFval
                      js['pdf'] = pdfval
+                     js['pdf_member'] = pdfmval
 
                      resp = self.api.simple_req('post',
                                                 self.proc+'/hist',
@@ -431,35 +400,24 @@ class Interface:
                      )
 
         print('request submitted : ',datetime.now())
+        self.store()
 
 
-    def request_result(self,hid=-1):
+    def request_result(self):
         """Request the results for submitted request.
         If all tokens have been completed the function returns true
         otherwise false.
 
-        Parameters
-        ----------
-        hid: int, default -1
-            A histogram id can be specified to submit just a single histogram. For
-            `-1` (default) all histograms are submitted.
-
         Returns
         -------
-        iscompleted: bool
+        finished: bool
             If all requested tokens have been completed the return value is `True`,
             `False` otherwise.
         """
 
-        ids = []
-        if hid == -1:
-            ids = list(range(0,len(self.histograms)))
-        elif type(hid) == int:
-            ids = [hid]
-        elif type(hid) == list:
-            ids = hid
+        ids = list(range(0,len(self.histograms)))
 
-        is_waiting = False
+        finished = True
         for it in ids:
             for jt, req in enumerate(self.histograms[it]['requests']):
                 if req[1] == 'submitted':
@@ -470,12 +428,10 @@ class Interface:
                         print('error occured    : ',datetime.now())
                         self.histograms[it]['requests'][jt][1] = 'error'
                     else:
-                        is_waiting = True;
+                        finished = False;
 
-        if is_waiting == True:
-            return False
-        else:
-            return True
+        self.store()
+        return finished
 
 
     def get_histograms(self):
@@ -489,101 +445,89 @@ class Interface:
         return self.histograms.copy()
 
 
-    def result(self,hid=-1):
-        """Return the result of a request
-
-        Parameters
-        ----------
-        hid: int, default -1
-            A histogram id can be specified to submit just a single histogram. For
-            `-1` (default) all histograms are submitted.
+    def result(self):
+        """Return the results of a request
         """
-        if 'requests' in self.histograms[hid]:
-            histo_var = []
-            fiducial_mean_var = []
-            fiducial_error_var = []
-            for req in self.histograms[hid]['requests']:
-                histo_var.append(req[1]['histogram'])
-                fiducial_mean_var.append(req[1]['fiducial_mean'])
-                fiducial_error_var.append(req[1]['fiducial_error'])
-            info = self.histograms[hid]['json'].copy()
-            if 'variations' in self.histograms[hid]:
-                info['variations'] = self.histograms[hid]['variations']
+        all_output = []
+        for hid in range(0,len(self.histograms)):
+            if 'requests' in self.histograms[hid]:
+                histo_var = []
+                fiducial_mean_var = []
+                fiducial_error_var = []
+                for req in self.histograms[hid]['requests']:
+                    histo_var.append(req[1]['histogram'])
+                    fiducial_mean_var.append(req[1]['fiducial_mean'])
+                    fiducial_error_var.append(req[1]['fiducial_error'])
+                info = self.histograms[hid]['json'].copy()
+                if 'variations' in self.histograms[hid]:
+                    info['variations'] = self.histograms[hid]['variations']
 
-            histo_comb = []
-            for binit in range(0,len(histo_var[0])):
-                new_bin = {
-                    'edges':histo_var[0][binit]['edges'],
-                    'mean':[],'error':[]
+                histo_comb = []
+                for binit in range(0,len(histo_var[0])):
+                    new_bin = {
+                        'edges':histo_var[0][binit]['edges'],
+                        'mean':[],'error':[]
+                    }
+                    for varit in range(0,len(histo_var)):
+                        new_bin['mean'].append(histo_var[varit][binit]['mean'])
+                        new_bin['error'].append(histo_var[varit][binit]['error'])
+                    histo_comb.append(new_bin)
+
+                output = {
+                 'histogram':histo_comb,
+                 'fiducial_mean':fiducial_mean_var,
+                 'fiducial_error':fiducial_error_var,
+                 'info':info
                 }
-                for varit in range(0,len(histo_var)):
-                    new_bin['mean'].append(histo_var[varit][binit]['mean'])
-                    new_bin['error'].append(histo_var[varit][binit]['error'])
-                histo_comb.append(new_bin)
 
-            output = {
-             'histogram':histo_comb,
-             'fiducial_mean':fiducial_mean_var,
-             'fiducial_error':fiducial_error_var,
-             'info':info
-            }
-
-            return output
-        else:
-            print("WARNING: result not available")
-            return False
-
-
-    def results(self):
-        """Return the result of all request
-        """
-        output = []
-        for it, hist in enumerate(self.histograms):
-            out = self.result(it)
-            if out == False:
-                return False
+                all_output.append(output)
             else:
-                output.append(out)
-        return output
+                print("WARNING: result for histogram "+str(hid)+" not available")
+        return all_output
 
 
     ###########################################################################
     # histogram interactions                                                  #
     ###########################################################################
 
-    def description(self, name:str, hid=-1):
+    def description(self, name:str, hid=None):
         """Add a description to a histogram.
-        This name can be used to easily organize your results. It is include
-        automatically during plotting with the hightea-plotting library.
+        This description can be used to easily organize your results.
+        It is included automatically during plotting with the hightea-plotting
+        library.
 
         Parameters
         ----------
         name: str
             A descriptive name for the histogram
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         self.histograms[hid]['json']['name'] = name
+        self.store()
 
 
-    def contribution(self, con, hid=-1):
+    def contribution(self, con, hid=None):
         """Define contribution(s) for histogram.
 
         Parameters
         ----------
         con: str or list(str)
             A string (or list of strings) defining the contribution(s)
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         success = True
@@ -603,8 +547,10 @@ class Interface:
             print(' -> con has to be a single string or a list of strings.')
             print(' -> Histogram '+str(hid)+' has not been changed')
 
+        self.store()
 
-    def binning(self, binning, hid=-1):
+
+    def binning(self, binning, hid=None):
         """Define the binning for histogram via dictionaries.
 
         Each dict is check to have at least the "variable" and "bins" key words.
@@ -613,12 +559,14 @@ class Interface:
         ----------
         binning: dict or list(dict)
             A dict (or list of dicts) defining the binning(s)
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         success = True
@@ -638,8 +586,10 @@ class Interface:
             print(' -> binning has to be a single bin specification or a list.')
             print(' -> Histogram '+str(hid)+' has not been changed')
 
+        self.store()
 
-    def binning(self, variable:str, binning:list, hid=-1):
+
+    def binning(self, variable:str, binning:list, hid=None):
         """Add a binning in variable (string) with specified bins (list)
 
         Parameters
@@ -648,12 +598,14 @@ class Interface:
             The variable to be binned.
         binning: list(float)
             A list of bin edges.
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         new_bin_spec = {'variable':variable,'bins':binning}
@@ -661,9 +613,10 @@ class Interface:
             self.histograms[hid]['json']['binning'].append(new_bin_spec)
         else:
             self.histograms[hid]['json']['binning'] = [new_bin_spec]
+        self.store()
 
 
-    def scales(self, muR:str, muF:str, hid=-1):
+    def scales(self, muR:str, muF:str, hid=None):
         """Define the central scale choices
         Define the central choice for the renormalization (muR) and
         factorization (muF) scale
@@ -674,37 +627,48 @@ class Interface:
             Expression to define muR.
         muF: str
             Expression to define muF.
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         self.histograms[hid]['json']['muR'] = muR
         self.histograms[hid]['json']['muF'] = muF
+        self.store()
 
 
-    def pdf(self, pdf:str, hid=-1):
+    def pdf(self, pdf:str, pdf_member=0, hid=None):
         """Define the pdf
 
         Parameters
         ----------
         pdf: str
             PDF name (refer to :py:func:`Interface.list_pdfs()`).
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+
+        pdf_member: int, default 0
+            Specify PDF member
+
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         self.histograms[hid]['json']['pdf'] = pdf
+        self.histograms[hid]['json']['pdf_member'] = pdf_member
+        self.store()
 
 
-    def scale_variation(self, variation_type:str, hid=-1):
+    def scale_variation(self, variation_type:str, hid=None):
         """Specify the type of scale variations
 
         Implemented variations
@@ -718,12 +682,14 @@ class Interface:
         ----------
         variation_type: str
             String corresponding to a defined variation.
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         if variation_type == '3-point' or variation_type == '7-point':
@@ -733,9 +699,10 @@ class Interface:
                 self.histograms[hid]['variation'] = [variation_type]
         else:
             print('Requested variation type \"'+variation_type+'\" is not implemented')
+        self.store()
 
 
-    def pdf_variation(self, variation_type:str, hid=-1):
+    def pdf_variation(self, hid=None):
         """Specify the type of pdf variation.
 
         Implemented variations
@@ -752,43 +719,49 @@ class Interface:
         ----------
         variation_type: str
             String corresponding to a defined variation.
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
-        if variation_type == 'standard' or variation_type == 'reduced':
-            if 'variation' in self.histograms[hid]:
-                self.histograms[hid]['variation'].append(variation_type)
-            else:
-                self.histograms[hid]['variation'] = [variation_type]
+        if 'variation' in self.histograms[hid]:
+            self.histograms[hid]['variation'].append('pdf')
+        else:
+            self.histograms[hid]['variation'] = ['pdf']
+
+        self.store()
 
 
-    def set_custom_variation(self, variations:list, hid=-1):
+    def set_custom_variation(self, variations:list, hid=None):
         """Define custom variations.
 
         Parameters
         ----------
         variations: list(str)
-            Each string has to be of format "muR,muF,pdf".
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+            Each string has to be of format "muR,muF,pdf,pdf_member".
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         if 'variation' in self.histograms[hid]:
             self.histograms[hid]['variation'].append(variations)
         else:
             self.histograms[hid]['variation'] = [variations]
+        self.store()
 
 
-    def cuts(self, cuts, hid=-1):
+    def cuts(self, cuts, hid=None):
         """Specify phase space cuts.
         This allows to contrain the phase space of the
         requested process. For processes which required generation cuts, the user
@@ -801,12 +774,14 @@ class Interface:
         ----------
         cuts: list(str)
             Each string has to be unequality equation of defined variables.
-        hid: int, default -1
-            Specification of the histogram to be modified. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be modified. By default
             the last added histogram is modified.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         if type(cuts) == str:
@@ -828,153 +803,235 @@ class Interface:
                     print("WARNING: "+cut+" is not a valid cut, will be ignored.")
         else:
             print("WARNING: "+cut+" is not a valid cut, will be ignored.")
+        self.store()
 
 
-    def show_results(self):
-        """Print all results in a human readable form
-        """
-        for it in range(0,len(self.histograms)):
-            print('Histogram ',it)
-            self.show_result(it)
-
-    def show_result(self,hid=-1):
+    def show_result(self):
         """Print the result in a human readable form
-
-        Parameters
-        ----------
-        hid: int, default -1
-            Specification of the histogram to be printed. By default (-1)
-            the last added histogram is printed.
         """
+        for hid,res in enumerate(self.result()):
+            print('Histogram ',hid)
 
-        res = self.result(hid)
+            f_bin = "{0:9.5g}"
+            f_xsec = "{0:11.5g}"
+            f_var  = "{0:10.2g}"
 
-        f_bin = "{0:9.5g}"
-        f_xsec = "{0:11.5g}"
-        f_var  = "{0:10.2g}"
+            print('Name                    : ',res['info']['name'])
+            print('Contributions           : ',res['info']['contributions'])
+            if 'muR' in res['info']:
+                print('muR                     : ',res['info']['muR'])
+            if 'muF' in res['info']:
+                print('muF                     : ',res['info']['muF'])
+            if 'pdf' in res['info']:
+                print('pdf                     : ',res['info']['pdf'])
+            if 'variation' in self.histograms[hid]:
+                print('variation               : ',self.histograms[hid]['variation'])
 
-        print('Name                    : ',res['info']['name'])
-        print('Contributions           : ',res['info']['contributions'])
-        if 'muR' in res['info']:
-            print('muR                     : ',res['info']['muR'])
-        if 'muF' in res['info']:
-            print('muF                     : ',res['info']['muF'])
-        if 'pdf' in res['info']:
-            print('pdf                     : ',res['info']['pdf'])
-        if 'variation' in self.histograms[hid]:
-            print('variation               : ',self.histograms[hid]['variation'])
-
-        # compute and print fiducial cross section
-        print('fiducial xsection       : ',f_xsec.format(res['fiducial_mean'][0]))
-        print('fiducial xsection error : ',f_xsec.format(res['fiducial_error'][0]))
-        if 'variation' in self.histograms[hid]:
-            if '3-point' in self.histograms[hid]['variation']:
-                line = 'scale-unc.(3-point) [%] :'
-                scale_ce = res['fiducial_mean'][0]
-                scale_up = np.amax(res['fiducial_mean'])
-                scale_do = np.amin(res['fiducial_mean'])
-                line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
-                       '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)
-                print(line)
-            if '7-point' in self.histograms[hid]['variation']:
-                line = 'scale-unc.(7-point) [%] :'
-                scale_ce = res['fiducial_mean'][0]
-                scale_up = np.amax(res['fiducial_mean'])
-                scale_do = np.amin(res['fiducial_mean'])
-                line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
-                       '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)
-                print(line)
-
-        # compute and print histogram
-        histo = res['histogram']
-        dimension = len(res['info']['binning'])
-
-        variable_str = ''
-        for it in range(0,dimension):
-            if it == 0:
-                variable_str += res['info']['binning'][it]['variable']
-            else:
-                variable_str += ' x '+res['info']['binning'][it]['variable']
-
-        print('Histogram     :',variable_str)
-        header = ''
-        for it in range(0,dimension):
-            header += ' bin'+str(it+1)+' low  |'
-            header += ' bin'+str(it+1)+' high |'
-        header += ' sigma [pb]  | mc-err [pb] |'
-        if 'variation' in self.histograms[hid]:
-            if '3-point' in self.histograms[hid]['variation']:
-                header += ' scale-unc.(3-point) [%] |'
-            if '7-point' in self.histograms[hid]['variation']:
-                header += ' scale-unc.(7-point) [%] |'
-            if 'standard' in self.histograms[hid]['variation']:
-                header += ' pdf-unc.(standard) [%]  |'
-            if 'reduced' in self.histograms[hid]['variation']:
-                header += ' pdf-unc.(reduced) [%]   |'
-        print(header)
-        length = len(histo)
-        for binit in range(0,length):
-            line = ''
-            # bins
-            for it in range(0,dimension):
-                line += ' '+f_bin.format(histo[binit]['edges'][it]['min_value'])+' |'
-                line += ' '+f_bin.format(histo[binit]['edges'][it]['max_value'])+' |'
-
-            line += ' '+f_xsec.format(histo[binit]['mean'][0])+' |'
-            line += ' '+f_xsec.format(histo[binit]['error'][0])+' |'
+            # compute and print fiducial cross section
+            print('fiducial xsection       : ',f_xsec.format(res['fiducial_mean'][0]))
+            print('fiducial xsection error : ',f_xsec.format(res['fiducial_error'][0]))
+            setup_it = 1
             if 'variation' in self.histograms[hid]:
                 if '3-point' in self.histograms[hid]['variation']:
-                    scale_ce = histo[binit]['mean'][0]
-                    scale_up = np.amax(histo[binit]['mean'])
-                    scale_do = np.amin(histo[binit]['mean'])
+                    line = 'scale-unc.(3-point) [%] :'
+                    scale_ce = res['fiducial_mean'][0]
+                    scale_up = np.amax(res['fiducial_mean'][setup_it:setup_it+2])
+                    scale_do = np.amin(res['fiducial_mean'][setup_it:setup_it+2])
                     line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
-                           '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)+'|'
+                           '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)
+                    print(line)
+                    setup_it += 2
                 if '7-point' in self.histograms[hid]['variation']:
-                    scale_ce = histo[binit]['mean'][0]
-                    scale_up = np.amax(histo[binit]['mean'])
-                    scale_do = np.amin(histo[binit]['mean'])
+                    line = 'scale-unc.(7-point) [%] :'
+                    scale_ce = res['fiducial_mean'][0]
+                    scale_up = np.amax(res['fiducial_mean'][setup_it:setup_it+6])
+                    scale_do = np.amin(res['fiducial_mean'][setup_it:setup_it+6])
                     line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
-                           '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)+'|'
-                if 'standard' in self.histograms[hid]['variation']:
-                    header += '| pdf-unc.(standard) [%]  |'
-                if 'reduced' in self.histograms[hid]['variation']:
-                    header += '| pdf-unc.(reduced) [%]   |'
-            print(line)
-        print('\n')
+                           '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)
+                    print(line)
+                    setup_it += 6
+                if 'pdf' in self.histograms[hid]['variation']:
+                    error_method = self.metadata['available_pdfs'][res['info']['pdf']]['error_method']
+                    nmembers = self.metadata['available_pdfs'][res['info']['pdf']]['nmembers']
+                    line = 'pdf-unc. ('+error_method+') [%] :'
+                    pdf_vals = res['fiducial_mean'][setup_it:setup_it+nmembers]
+                    pdf_ce = pdf_vals[0]
+                    pdf_up = pdf_ce
+                    pdf_do = pdf_ce
+                    if error_method == 'replicas':
+                        pdf_err = np.std(pdf_vals)
+                        pdf_up += pdf_err
+                        pdf_do -= pdf_err
+                    if error_method == 'hessian':
+                        #following 0901.0002 sec 6.
+                        npairs = (nmembers-1)/2
+                        sumdiff_up = 0.
+                        sumdiff_do = 0.
+                        for parit in range(0,npairs):
+                            diffp = pdf_vals[1+parit*2]-pdf_ce
+                            diffm = pdf_vals[1+parit*2+1]-pdf_ce
+                            sumdiff_up += (np.max([0,diffp,diffm]))**2
+                            sumdiff_do += (np.max([0,-diffp,-diffm]))**2
+                        pdf_up += np.sqrt(sumdiff_up) 
+                        pdf_do += np.sqrt(sumdiff_do) 
+                    if error_method == 'symmhessian':
+                        #following 0901.0002 sec 6.
+                        npairs = nmembers-1
+                        sumdiff_up = 0.
+                        sumdiff_do = 0.
+                        for parit in range(0,npairs):
+                            diffp = pdf_vals[1+parit]-pdf_ce
+                            sumdiff_up += (np.max([0,diffp]))**2
+                            sumdiff_do += (np.max([0,-diffp]))**2
+                        pdf_up += np.sqrt(sumdiff_up) 
+                        pdf_do += np.sqrt(sumdiff_do) 
+                    line += ' +'+f_var.format((pdf_up-pdf_ce)/pdf_ce*100.)+\
+                           '/ -'+f_var.format((pdf_ce-pdf_do)/pdf_ce*100.)
+                    print(line)
+                    setup_it += nmembers
+
+            # compute and print histogram
+            histo = res['histogram']
+            dimension = len(res['info']['binning'])
+
+            variable_str = ''
+            for it in range(0,dimension):
+                if it == 0:
+                    variable_str += res['info']['binning'][it]['variable']
+                else:
+                    variable_str += ' x '+res['info']['binning'][it]['variable']
+
+            print('Histogram     :',variable_str)
+            header = ''
+            for it in range(0,dimension):
+                header += ' bin'+str(it+1)+' low  |'
+                header += ' bin'+str(it+1)+' high |'
+            header += ' sigma [pb]  | mc-err [pb] |'
+            if 'variation' in self.histograms[hid]:
+                if '3-point' in self.histograms[hid]['variation']:
+                    header += ' scale-unc.(3-point) [%] |'
+                if '7-point' in self.histograms[hid]['variation']:
+                    header += ' scale-unc.(7-point) [%] |'
+                if 'pdf' in self.histograms[hid]['variation']:
+                    error_method = self.metadata['available_pdfs'][res['info']['pdf']]['error_method']
+                    header += ' pdf-unc.('+error_method+') [%]  |'
+            print(header)
+            length = len(histo)
+            for binit in range(0,length):
+                line = ''
+                # bins
+                for it in range(0,dimension):
+                    line += ' '+f_bin.format(histo[binit]['edges'][it]['min_value'])+' |'
+                    line += ' '+f_bin.format(histo[binit]['edges'][it]['max_value'])+' |'
+
+                line += ' '+f_xsec.format(histo[binit]['mean'][0])+' |'
+                line += ' '+f_xsec.format(histo[binit]['error'][0])+' |'
+                setup_it = 1
+                if 'variation' in self.histograms[hid]:
+                    if '3-point' in self.histograms[hid]['variation']:
+                        scale_ce = histo[binit]['mean'][0]
+                        scale_up = np.amax(histo[binit]['mean'][setup_it:setup_it+2])
+                        scale_do = np.amin(histo[binit]['mean'][setup_it:setup_it+2])
+                        line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
+                               '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)+'|'
+                        setup_it += 2
+                    if '7-point' in self.histograms[hid]['variation']:
+                        scale_ce = histo[binit]['mean'][0]
+                        scale_up = np.amax(histo[binit]['mean'][setup_it:setup_it+6])
+                        scale_do = np.amin(histo[binit]['mean'][setup_it:setup_it+6])
+                        line += ' +'+f_var.format((scale_up-scale_ce)/scale_ce*100.)+\
+                               '/ -'+f_var.format((scale_ce-scale_do)/scale_ce*100.)+'|'
+                        setup_it += 6
+                    if 'pdf' in self.histograms[hid]['variation']:
+                        error_method = self.metadata['available_pdfs'][res['info']['pdf']]['error_method']
+                        nmembers = self.metadata['available_pdfs'][res['info']['pdf']]['nmembers']
+                        pdf_vals = np.array(histo[binit]['mean'][setup_it:setup_it+nmembers])
+                        pdf_ce = pdf_vals[0]
+                        pdf_up = pdf_ce
+                        pdf_do = pdf_ce
+                        if error_method == 'replicas':
+                            pdf_err = np.sqrt(sum((pdf_vals[1:]-pdf_ce)**2)/(nmembers-1))
+                            pdf_up += pdf_err
+                            pdf_do -= pdf_err
+                        if error_method == 'hessian':
+                            #following 0901.0002 sec 6.
+                            npairs = (nmembers-1)/2
+                            sumdiff_up = 0.
+                            sumdiff_do = 0.
+                            for parit in range(0,npairs):
+                                diffp = pdf_vals[1+parit*2]-pdf_ce
+                                diffm = pdf_vals[1+parit*2+1]-pdf_ce
+                                sumdiff_up += (np.max([0,diffp,diffm]))**2
+                                sumdiff_do += (np.max([0,-diffp,-diffm]))**2
+                            pdf_up += np.sqrt(sumdiff_up) 
+                            pdf_do += np.sqrt(sumdiff_do) 
+                        if error_method == 'symmhessian':
+                            #following 0901.0002 sec 6.
+                            npairs = nmembers-1
+                            sumdiff_up = 0.
+                            sumdiff_do = 0.
+                            for parit in range(0,npairs):
+                                diffp = pdf_vals[1+parit]-pdf_ce
+                                sumdiff_up += (np.max([0,diffp]))**2
+                                sumdiff_do += (np.max([0,-diffp]))**2
+                            pdf_up += np.sqrt(sumdiff_up) 
+                            pdf_do += np.sqrt(sumdiff_do) 
+                        line += ' +'+f_var.format((pdf_up-pdf_ce)/pdf_ce*100.)+\
+                               '/ -'+f_var.format((pdf_ce-pdf_do)/pdf_ce*100.)
+                        setup_it += nmembers
+                print(line)
+            print('\n')
 
     ###########################################################################
     # file operations                                                         #
     ###########################################################################
 
-    def read_json(self,filename:str,hid=-1):
+    def store(self):
+        """Store job information on drive
+        """
+        newdict = {
+            'proc':self.proc,
+            'valid_contributions':self.valid_contributions,
+            'custom_variables':self.custom_variables,
+            'histograms':self.histograms
+            }
+        
+        with open(self.filename,'w') as fp:
+            json.dump(newdict,fp,indent=2)
+
+    def read_json(self,filename:str,hid=None):
         """Read in histogram specification from json file
 
         Parameters
         ----------
         filename: str
             Path specification for JSON file.
-        hid: int, default -1
-            Specification of the histogram to be printed. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be printed. By default
             the last added histogram is printed.
         """
+        if hid == None: hid = -1
+
         if 'requests' in self.histograms[hid]:
-            print('WARNING: histogram already submitted. Nothing changed')
+            print('WARNING: job already submitted. Nothing changed')
             return
 
         with open(filename,'r') as fp:
             self.histograms[hid]['json'] = json.load(fp)
 
 
-    def write_json(self,filename:str,hid=-1):
+    def write_json(self,filename:str,hid=None):
         """Write histogram to specified file in json format
 
         Parameters
         ----------
         filename: str
             Path specification for JSON file.
-        hid: int, default -1
-            Specification of the histogram to be printed. By default (-1)
+        hid: int, default None
+            Specification of the histogram to be printed. By default
             the last added histogram is printed.
         """
+        if hid == None: hid = -1
+
         with open(filename,'w') as fp:
             json.dump(self.histograms[hid]['json'],fp,indent=2)

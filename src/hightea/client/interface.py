@@ -705,20 +705,8 @@ class Interface:
     def pdf_variation(self, hid=None):
         """Specify the type of pdf variation.
 
-        Implemented variations
-         - 'standard': Full pdf member variation to determine pdf uncertainties as
-                       specified by pdf set. NOTE: This might be time consuming as
-                       it corresponds to O(100) reweight setups.
-         - 'reduced' : For many available pdf sets a reduced member set has been
-                       produced within the SMPDF formalism (CITE). This allows for
-                       faster pdf uncertainty estimatation (O(10) reweight setups).
-                       This approach typically reproduces 'standard' pdf uncertainty
-                       up to O(1%) accuracy.
-
         Parameters
         ----------
-        variation_type: str
-            String corresponding to a defined variation.
         hid: int, default None
             Specification of the histogram to be modified. By default
             the last added histogram is modified.

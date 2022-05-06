@@ -489,40 +489,6 @@ class Interface:
         return self.requests[0]['result']
 
 
-    def to_plot(self,obid=0):
-        """Prepare a single observable for plotting (legacy support).
-
-        The result is meant to input for the hightea plotting routine/Run class.
-        """
-        new_histogram = []
-        new_fiducial_mean = []
-        new_fiducial_error = []
-
-        for it in range(0,len(self.requests)):
-            new_fiducial_mean.append(self.requests[it]['result']['fiducial_mean'])
-            new_fiducial_error.append(self.requests[it]['result']['fiducial_error'])
-
-        for binit in range(0,len(self.requests[it]['result']['histograms'][obid])):
-            new_bin = self.requests[0]['result']['histograms'][obid][binit].copy()
-            new_bin['mean'] = [new_bin['mean']]
-            new_bin['error'] = [new_bin['error']]
-
-            for it in range(1,len(self.requests)):
-                new_bin['mean'].append(self.requests[it]['result']['histograms'][obid][binit]['mean'])
-                new_bin['error'].append(self.requests[it]['result']['histograms'][obid][binit]['error'])
-            new_histogram.append(new_bin)
-
-        mod_info = {'request':self.requests[0]['json'].copy()}
-        mod_info['request']['binning'] = mod_info['request']['observables'][obid]
-        mod_info['name'] = self.name
-
-        return {
-            'info':mod_info,
-            'histogram':new_histogram,
-            'fiducial_mean':new_fiducial_mean,
-            'fiducial_error':new_fiducial_error
-            }
-
     def show_result(self):
         """Print the result in a human readable form
         """

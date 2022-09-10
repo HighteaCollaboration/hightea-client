@@ -85,8 +85,20 @@ class Interface:
         """Nicely formatted metadata printout
         """
         print('  ',metadata['name'],'\n')
-        print('Process tag          : ',proc.replace('processes/',''),
+        print('Process tag         : ',proc.replace('processes/',''),
               ' (use for process specification)')
+        layout = metadata.get('layout')
+        if layout:
+            print('Momenta layout      :  ', end='')
+            particles = []
+            jetID = 1
+            for entry in layout:
+                if isinstance(entry, dict):
+                    particles.append(list(entry.values())[0])
+                elif ('jet_parton_momenta' in entry):
+                    particles.append(f' j{jetID}')
+                    jetID += 1
+            print(particles)
         print('Default scales      : ',metadata['scales_info'])
         print('Default pdf         : ',metadata['pdf_set'],'/',
               metadata['pdf_member'])

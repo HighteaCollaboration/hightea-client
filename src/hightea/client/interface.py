@@ -4,8 +4,9 @@ from pathlib import Path
 from datetime import datetime
 import os
 import numpy as np
+import copy
 
-from .apiactions import API,FIBO,saturate
+from .apiactions import API, FIBO, saturate, DEFAULT_ENDPOINT
 from .datahandler import DataHandler
 
 class Interface:
@@ -21,7 +22,7 @@ class Interface:
     >>> job.show_result()
     """
 
-    def __init__(self,name:str ,directory='.', overwrite=False):
+    def __init__(self,name:str ,directory='.', overwrite=False, *, endpoint=DEFAULT_ENDPOINT):
         """Constructor, requires job name.
 
         If job already exists, job is loaded from the drive.
@@ -40,40 +41,59 @@ class Interface:
             If `True` existing job data is overwritten.
 
         """
-        self.api = API()
-        self.name = name
-        self.directory = directory
+        self._api = API(endpoint=endpoint)
+        self._name = name
+        self._directory = directory
         # create directory in case it doesn't exist
         Path(directory).mkdir(parents=True, exist_ok=True)
         Path(directory+'/hightea-jobs/').mkdir(parents=True, exist_ok=True)
-        self.filename = directory+'/hightea-jobs/'+name+'.job'
+        self._filename = directory+'/hightea-jobs/'+name+'.job'
 
-        if Path(self.filename).is_file() and not overwrite:
-            print("Load data from :",self.filename)
+        if Path(self._filename).is_file() and not overwrite:
+            print("Load data from :",self._filename)
             jsonfile = {}
-            with open(self.filename,'r') as fp:
+            with open(self._filename,'r') as fp:
                 jsonfile = json.load(fp)
-            self.proc = jsonfile['proc']
-            self.valid_contributions = jsonfile['valid_contributions']
-            self.custom_variables = jsonfile['custom_variables']
-            self.variation_info = jsonfile['variation_info']
-            self.variations = jsonfile['variations']
-            self.requests = jsonfile['requests']
-            self.status = jsonfile['status']
-            self.metadata = self.api.simple_req('get',self.proc)
+
+            self._proc                = jsonfile['proc']
+            self._metadata            = jsonfile['metadata']
+            self._valid_contributions = jsonfile['valid_contributions']
+            self._contributions       = jsonfile['contributions']
+            self._custom_variables    = jsonfile['custom_variables']
+            self._muR                 = jsonfile['muR']
+            self._muF                 = jsonfile['muF']
+            self._pdf                 = jsonfile['pdf']
+            self._pdf_member          = jsonfile['pdf_member']
+            self._variation_info      = jsonfile['variation_info']
+            self._variations          = jsonfile['variations']
+            self._cuts                = jsonfile['cuts']
+            self._jet_parameters      = jsonfile['jet_parameters']
+            self._observables         = jsonfile['observables']
+            self._requests            = jsonfile['requests']
+            self._result              = jsonfile['result']
+            self._status              = jsonfile['status']
         else:
-            if overwrite and Path(self.filename).is_file():
-                print("Remove data from :",self.filename)
-                os.remove(self.filename)
-            self.proc = ''
-            self.metadata = {}
-            self.valid_contributions = []
-            self.custom_variables = {}
-            self.variation_info = []
-            self.variations = []
-            self.requests = [{'json':{'observables':[]},
-                              'token':None,'status':None,'result':None}]
-            self.status = 'preparation'
+            if overwrite and Path(self._filename).is_file():
+                print("Remove data from :",self._filename)
+                os.remove(self._filename)
+
+            self._proc                = ''
+            self._metadata            = {}
+            self._valid_contributions = []
+            self._contributions       = []
+            self._custom_variables    = {}
+            self._muR                 = None
+            self._muF                 = None
+            self._pdf                 = None
+            self._pdf_member          = 0
+            self._variation_info      = []
+            self._variations          = []
+            self._cuts                = []
+            self._jet_parameters      = None
+            self._observables         = []
+            self._requests            = []
+            self._result              = None
+            self._status              = 'preparation'
             self.store()
 
 
@@ -107,12 +127,16 @@ class Interface:
         print('Predefined variables')
         for var in metadata['variables'].keys():
             print('  ','{0: <10}'.format(var),' : ',metadata['variables'][var])
+        jet_parameters = metadata.get('default_jet_parameters')
+        if len(jet_parameters):
+            print('Jet parameters      :', end='')
+            for entry in jet_parameters:
+                print(' ',entry,' : ',jet_parameters[entry])
 
 
     def _finalize_request(self):
         """Checks and finalize a request before submitting
         """
-        self.requests[0]['json']['custom_variables'] = self.custom_variables
         self._compile_variations()
 
 
@@ -122,24 +146,41 @@ class Interface:
         Checks if a variation is requested and if yes compiles a
         list of individual scale/pdf choices to be computed.
         """
-        if len(self.variation_info) == 0:
-            return True;
 
-        mur = 'muR0'
-        muf = 'muF0'
-        pdf = self.metadata['pdf_set']
-        pdf_member = self.metadata['pdf_member']
-        if 'muR' in self.requests[0]['json']:
-            mur = self.requests[0]['json']['muR']
-        if 'muF' in self.requests[0]['json']:
-            muf = self.requests[0]['json']['muF']
-        if 'pdf' in self.requests[0]['json']:
-            pdf = self.requests[0]['json']['pdf']
-        if 'pdf_member' in self.requests[0]['json']:
-            pdf_member = self.requests[0]['json']['pdf_member']
+        if len(self._variation_info) == 0:
+            basic_request = {
+                'json':{
+                    'contributions'    : self._contributions,
+                    'custom_variables' : self._custom_variables,
+                    'muR'              : self._muR,
+                    'muF'              : self._muF,
+                    'pdf'              : self._pdf,
+                    'pdf_member'       : self._pdf_member,
+                    'cuts'             : self._cuts,
+                    'jet_parameters'   : self._jet_parameters,
+                    'observables'      : self._observables,
+                    },
+                'token':None,'status':None,'result':None
+                }
+            self._requests.append(basic_request.copy())
+            self.store()
+            return;
 
+        # default values
+        mur = self._metadata['muR0']
+        muf = self._metadata['muF0']
+        pdf = self._metadata['pdf_set']
+        pdf_member = self._metadata['pdf_member']
+
+        # overwrite with user input
+        if self._muR: mur = self._muR
+        if self._muF: muf = self._muF
+        if self._pdf: pdf = self._pdf
+        if self._pdf_member: pdf_member = self._pdf_member
+
+        # build up the list of setups
         list_of_setups = [mur+','+muf+','+pdf+','+str(pdf_member)]
-        for var in self.variation_info:
+        for var in self._variation_info:
             if var['type'] == 'scale':
                 if var['nvar'] == 3:
                     list_of_setups.append(mur+'*2,'+muf+'*2,'+pdf+','+str(pdf_member))
@@ -155,16 +196,17 @@ class Interface:
             if var['type'] == 'pdf - smpdf' or var['type'] == 'pdf - full':
                 cur_pdf = pdf
                 if var['type'] == 'pdf - smpdf' and cur_pdf.find('smpdf') == -1:
-                    pdf_smpdf = cur_pdf+'_'+self.proc.replace('processes/','')+'_smpdf'
-                    if pdf_smpdf in self.metadata['available_pdfs']:
+                    # this name is constructed by convention
+                    pdf_smpdf = cur_pdf+'_'+self._proc.replace('processes/','')+'_smpdf'
+                    if pdf_smpdf in self._metadata['available_pdfs']:
                         cur_pdf = pdf_smpdf
 
-                if self.metadata['available_pdfs'][cur_pdf]['error_method'] == 'none':
+                if self._metadata['available_pdfs'][cur_pdf]['error_method'] == 'none':
                     print('No PDF variation available for PDF set: '+cur_pdf)
                 else:
-                    nmembers = self.metadata['available_pdfs'][cur_pdf]['nmembers']
+                    nmembers = self._metadata['available_pdfs'][cur_pdf]['nmembers']
                     var['nvar'] = nmembers
-                    var['error_method'] = self.metadata['available_pdfs'][cur_pdf]['error_method']
+                    var['error_method'] = self._metadata['available_pdfs'][cur_pdf]['error_method']
                     for it in range(1,nmembers):
                         list_of_setups.append(mur+','+muf+','+cur_pdf+','+str(it))
 
@@ -172,37 +214,55 @@ class Interface:
                 for setup in var['custom_list']:
                     list_of_setups.append(setup)
 
-        self.variations = list_of_setups
+        # store list of setups for convenience
+        self._variations = list_of_setups
 
-        for setup in list_of_setups[1:]:
-            js = self.requests[0]['json'].copy()
+        # create requests
+        for setup in list_of_setups:
             muRval, muFval, pdfval, pdfmval = setup.split(',')
-            js['muR'] = muRval
-            js['muF'] = muFval
-            js['pdf'] = pdfval
-            js['pdf_member'] = pdfmval
-            self.requests.append({'json':js.copy()})
 
-        return True;
+            req = {
+                'json':{
+                    'contributions'    : self._contributions,
+                    'custom_variables' : self._custom_variables,
+                    'muR'              : muRval,
+                    'muF'              : muFval,
+                    'pdf'              : pdfval,
+                    'pdf_member'       : pdfmval,
+                    'cuts'             : self._cuts,
+                    'jet_parameters'   : self._jet_parameters,
+                    'observables'      : self._observables,
+                    },
+                'token':None,'status':None,'result':None
+                }
+
+            self._requests.append(req)
+
+        self.store()
 
 
     def _finalize_result(self):
         """Finalized the results, i.e. computes systematic uncertainties.
         """
-
-        self.requests[0]['result']['info']['name'] = self.name
+        # The first entry is by construction the central prediction
+        final_result = copy.deepcopy(self._requests[0]['result'])
 
         count = 1;
         # do one variation at a time
-        for var_info in self.variation_info:
-            comb = DataHandler();
-            # the assumption is that the first request is always the
-            # central prediction
-            comb.add_data(self.requests[0]['result'])
+        for var_info in self._variation_info:
+            comb = DataHandler(final_result);
+            # this relies on the order of setups in compile_variations
             for reqit in range(1,var_info['nvar']):
-                comb.add_data(self.requests[count]['result'])
+                comb.add_data(self._requests[count]['result'])
                 count += 1
+            # the DataHandler class modifies the first results by adding
+            # the computed sys_errors
             comb.compute_uncertainty(var_info['error_method'])
+            final_result = comb.get_result()
+
+        final_result['info']['name'] = self._name
+        self._result = final_result
+
         self.store()
 
 
@@ -213,8 +273,21 @@ class Interface:
     def _is_valid_contribution(self, con):
         """Return true if con is a correct contribution.
         """
-        if con in self.valid_contributions:
+        if con in self._valid_contributions:
             return True
+        else:
+            return False
+
+
+    def _is_valid_obs_spec(self, obs_spec):
+        """Return true if bin is correct observable specification.
+        """
+        if type(obs_spec) == dict and 'binning' in obs_spec:
+            success = True
+            for e in obs_spec['binning']:
+                if self._is_valid_bin_spec(e) == False:
+                    success = False
+            return success
         else:
             return False
 
@@ -246,6 +319,19 @@ class Interface:
             return False;
 
 
+    def _is_valid_jet_parameters(self, jet_parameters):
+        """Return true if jet_parameters is a valid jet_parameters spec
+        """
+        if type(jet_parameters) == dict:
+            success = True
+            if 'maxnjet' not in jet_parameters: success = False
+            if 'p' not in jet_parameters: success = False
+            if 'R' not in jet_parameters: success = False
+            return success;
+        else:
+            return False;
+
+
     ###########################################################################
     # simple database interactions                                            #
     ###########################################################################
@@ -259,12 +345,13 @@ class Interface:
             If `True` detailed information for each process is provided, if
             `False` only the process key is shown.
         """
-        processes = self.api.list_processes()
+
+        processes = self._api.list_processes()
         for proc in processes:
             if proc != 'processes/tests':
                 if detailed:
                     print('#############################################\n')
-                    metadata = self.api.simple_req('get',proc)
+                    metadata = self._api.simple_req('get',proc)
                     self._print_metadata(proc,metadata)
                     print('\n')
                 else:
@@ -274,7 +361,7 @@ class Interface:
     def list_pdfs(self):
         """Request the list of available pdfs from the server
         """
-        pdfs = self.api.list_pdfs()
+        pdfs = self._api.list_pdfs()
         for pdf in pdfs: print(pdf)
 
 
@@ -294,21 +381,23 @@ class Interface:
         verbose: bool, default True
             If `True` the process information is printed.
         """
-        if self.status == 'submitted' or self.status == 'finished':
+
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
         if self._is_valid_process(proc):
-            self.proc = 'processes/'+proc
-            self.metadata = self.api.simple_req('get',self.proc)
-            if verbose: self._print_metadata(self.proc,self.metadata)
-            self.valid_contributions = list(self.metadata.get('contribution_groups',{}).keys())
+            self._proc = 'processes/'+proc
+            self._metadata = self._api.simple_req('get',self._proc)
+            if verbose: self._print_metadata(self._proc,self._metadata)
+            self._valid_contributions = list(self._metadata.get('contribution_groups',{}).keys())
 
         else:
             # TODO: how to implement properly warnings
             print('WARNING: process(proc)')
             print(' -> specified proc not in the correct format (string).')
             print(' -> Nothing has been changed.')
+
         self.store()
 
 
@@ -326,12 +415,49 @@ class Interface:
             already defined variables. Expressions are written using the
             conventions of the Python language.
         """
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        self.custom_variables[name] = definition
+        self._custom_variables[name] = definition
+
         self.store()
+
+
+    def add_variable_definitions(self, definitions:dict):
+        """Add variable definitions from dictionary.
+
+        The specified to be a dictionary of ``"name":"definition"`` pairs.
+
+        Parameters
+        ----------
+        definitions: dict
+            The dictionary containing the definitions.
+        """
+        if self._status == 'submitted' or self._status == 'finished':
+            print('WARNING: job already submitted. Nothing changed')
+            return
+
+        for key in definitions.keys():
+            if not type(definitions[key]) == str:
+                print('WARNING: Definition not a string. Not added.')
+            else:
+                self._custom_variables[key] = definitions[key]
+
+        self.store()
+
+
+    def store_variable_definitions(self, filename:str):
+        """Store variable definitions to file.
+
+        Parameters
+        ----------
+        filename: str
+            The filename containing the definitions.
+        """
+
+        with open(filename,'w') as fp:
+            json.dump(self._custom_variables,fp,indent=2)
 
 
     def load_variable_definitions(self, filename:str):
@@ -345,7 +471,7 @@ class Interface:
         filename: str
             The filename containing the definitions.
         """
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
@@ -355,46 +481,16 @@ class Interface:
                 if not type(new_variables[key]) == str:
                     print('WARNING: Definition not a string. Not added.')
                 else:
-                    self.custom_variables[key] = new_variables[key]
+                    self._custom_variables[key] = new_variables[key]
 
-
-    def add_variable_definitions(self, definitions:dict):
-        """Add variable definitions from dictionary.
-
-        The specified to be a dictionary of ``"name":"definition"`` pairs.
-
-        Parameters
-        ----------
-        definitions: dict
-            The dictionary containing the definitions.
-        """
-        if self.status == 'submitted' or self.status == 'finished':
-            print('WARNING: job already submitted. Nothing changed')
-            return
-
-        for key in definitions.keys():
-            if not type(definitions[key]) == str:
-                print('WARNING: Definition not a string. Not added.')
-            else:
-                self.custom_variables[key] = definitions[key]
-
-
-    def store_variable_definitions(self, filename:str):
-        """Store variable definitions to file.
-
-        Parameters
-        ----------
-        filename: str
-            The filename containing the definitions.
-        """
-        with open(filename,'w') as fp:
-            json.dump(self.custom_variables,fp,indent=2)
+        self.store()
 
 
     def request(self):
         """Create and submit requests for all defined histograms and wait for the answer.
         The results is stored.
         """
+
         self.submit_request()
         for timeout in saturate(FIBO):
             if self.request_result():
@@ -409,28 +505,29 @@ class Interface:
         The answer can be received via request_result().
         """
 
-        if len(self.requests) > 0:
-            if self.requests[0]['token'] != None:
-                print('WARNING: job already submitted. Nothing submitted.')
-                return
-        else:
-            print('WARNING: job does not contain requests. Nothing submitted.')
+        if len(self._requests) > 0:
+            print('WARNING: job already submitted. Nothing submitted.')
             return
 
         self._finalize_request()
 
-        ids = list(range(0,len(self.requests)))
+        if len(self._requests) == 0:
+            print('WARNING: job does not contain requests. Nothing submitted.')
+            return
+
+        ids = list(range(0,len(self._requests)))
 
         # submit all requests
         for it in ids:
-            resp = self.api.simple_req('post',
-                                       self.proc+'/multi_hist',
-                                       data=self.requests[it]['json'])
-            self.requests[it]['token'] = resp['token']
-            self.requests[it]['status'] = 'submitted'
+            resp = self._api.simple_req('post',
+                                        self._proc+'/hist',
+                                        data=self._requests[it]['json'])
+            self._requests[it]['token'] = resp['token']
+            self._requests[it]['status'] = 'submitted'
 
-        self.status = 'submitted'
+        self._status = 'submitted'
         print('request submitted : ',datetime.now())
+
         self.store()
 
 
@@ -446,27 +543,29 @@ class Interface:
             `False` otherwise.
         """
 
-        if self.status == 'finished': return True
+        if self._status == 'finished': return True
 
-        ids = list(range(0,len(self.requests)))
+        ids = list(range(0,len(self._requests)))
 
         finished = True
-        for jt, req in enumerate(self.requests):
+        for jt, req in enumerate(self._requests):
             if req['status'] == 'submitted':
-                resp = self.api.simple_req('get',f'token/'+req['token'])
+                resp = self._api.simple_req('get',f'token/'+req['token'])
                 if resp['status'] == 'completed':
-                    self.requests[jt]['result'] = json.loads(resp['result'])
-                    self.requests[jt]['status'] = 'completed'
+                    self._requests[jt]['result'] = json.loads(resp['result'])
+                    self._requests[jt]['status'] = 'completed'
                 elif resp == 'errored':
                     print('error occured    : ',datetime.now())
-                    self.requests[it]['status'] = 'errored'
+                    self._requests[it]['status'] = 'errored'
                 else:
                     finished = False;
 
         self.store()
         if finished:
             self._finalize_result()
-            self.status = 'finished'
+            self._status = 'finished'
+            self.store()
+
         return finished
 
 
@@ -478,7 +577,8 @@ class Interface:
         -----
         This routine is meant for debugging and troubleshooting.
         """
-        return self.requests.copy()
+
+        return self._requests
 
 
     def result(self):
@@ -494,36 +594,34 @@ class Interface:
             A dictionary containing the results.
         """
 
-        if self.status != 'finished':
+        if self._status != 'finished':
             print('WARNING: job not finished, no results available')
             return
 
-        return self.requests[0]['result']
+        return self._result
 
 
     def show_result(self):
         """Print the result in a human readable form
         """
+
         res = self.result()
-        info = self.requests[0]['json']
+        info = self._requests[0]['json']
 
         f_bin = "{0:9.5g}"
         f_xsec = "{0:11.5g}"
         f_var  = "{0:9.2g}"
 
-        print('Name                    : ',self.name)
-        print('Contributions           : ',info['contributions'])
-        if 'muR' in info:
-            print('muR                     : ',info['muR'])
-        if 'muF' in info:
-            print('muF                     : ',info['muF'])
-        if 'pdf' in info:
-            print('pdf                     : ',info['pdf'])
+        print('Name                    : ',self._name)
+        print('Contributions           : ',self._contributions)
+        if self._muR: print('muR                     : ',self._muR)
+        if self._muF: print('muF                     : ',self._muF)
+        if self._pdf: print('pdf                     : ',self._pdf,',',self._pdf_member)
 
         print('fiducial xsection       : ',f_xsec.format(res['fiducial_mean']))
         print('fiducial xsection error : ',f_xsec.format(res['fiducial_error']))
 
-        for it, var_info in enumerate(self.variation_info):
+        for it, var_info in enumerate(self._variation_info):
             print('systematic unc. [%]     : '+var_info['type']+' ('+str(var_info['nvar'])+')')
             var_ce = res['fiducial_mean']
             var_up = res['fiducial_sys_error'][it]['pos']
@@ -535,14 +633,17 @@ class Interface:
         # compute and print histograms
         for it, histo in enumerate(res['histograms']):
 
-            dimension = len(info['observables'][it])
-
-            variable_str = ''
-            for jt in range(0,dimension):
-                if jt == 0:
-                    variable_str += info['observables'][it][jt]['variable']
-                else:
-                    variable_str += ' x '+info['observables'][it][jt]['variable']
+            # observable information
+            binning_info = self._observables[it]['binning']
+            dimension = len(binning_info)
+            # compile binning name
+            variable_str = self._observables[it].get('name','')
+            if variable_str == '':
+                for jt in range(0,dimension):
+                    if jt == 0:
+                        variable_str += binning_info[jt]['variable']
+                    else:
+                        variable_str += ' x '+binning_info[jt]['variable']
 
             print('Histogram     :',variable_str)
             header = ''
@@ -550,7 +651,7 @@ class Interface:
                 header += ' bin'+str(jt+1)+' low  |'
                 header += ' bin'+str(jt+1)+' high |'
             header += ' sigma [pb]  | mc-err [pb] |'
-            for jt, var_info in enumerate(self.variation_info):
+            for jt, var_info in enumerate(self._variation_info):
                 header += (' '+var_info['type']+' ('+str(var_info['nvar'])+')'+' [%] |').rjust(24)
 
             print(header)
@@ -564,7 +665,7 @@ class Interface:
 
                 line += ' '+f_xsec.format(histo[binit]['mean'])+' |'
                 line += ' '+f_xsec.format(histo[binit]['error'])+' |'
-                for jt, var_info in enumerate(self.variation_info):
+                for jt, var_info in enumerate(self._variation_info):
                     var_ce = histo[binit]['mean']
                     var_up = histo[binit]['sys_error'][jt]['pos']
                     var_do = histo[binit]['sys_error'][jt]['neg']
@@ -587,7 +688,7 @@ class Interface:
             A string (or list of strings) defining the contribution(s)
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
@@ -597,9 +698,9 @@ class Interface:
                 if self._is_valid_contribution(e) == False:
                     success = False
             if success:
-                self.requests[0]['json']['contributions'] = con
+                self._contributions = con
         elif type(con) == str and self._is_valid_contribution(con):
-            self.requests[0]['json']['contributions'] = [con]
+            self._contributions = [con]
         else:
             success = False
 
@@ -611,42 +712,43 @@ class Interface:
         self.store()
 
 
-    def binning(self, binning):
-        """Define the binning for histogram via dictionaries.
+    def observable(self, observable):
+        """Define the binning for observables via dictionaries.
 
-        Each dict is check to have at least the "variable" and "bins" key words.
+        Each dict is check to have at least the "binning" key words.
 
         Parameters
         ----------
         binning: dict or list(dict)
-            A dict (or list of dicts) defining the binning(s)
+            A dict (or list of dicts) defining the observables(s)
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
         success = True
-        if type(binning) == list:
+        if type(observable) == list:
             for e in binning:
-                if self._is_valid_bin_spec(e) == False:
+                if self._is_valid_obs_spec(e) == False:
                     success = False
             if success:
-                self.requests[0]['json']['observables'].append(binning)
-        elif self._is_valid_bin_spec(binning):
-            self.requests[0]['json']['observables'].append([binning])
+                for e in binning:
+                  self._observables.append(e)
+        elif self._is_valid_obs_spec(observable):
+            self._observables.append(observable)
         else:
             success = False
 
         if success == False:
-            print('WARNING: binning(binning)')
-            print(' -> binning has to be a single bin specification or a list.')
+            print('WARNING: observable(observable)')
+            print(' -> binning has to be a single (or list of) observable specification.')
 
         self.store()
 
 
-    def binning(self, variable:str, binning:list):
-        """Add a binning in variable (string) with specified bins (list)
+    def observable(self, variable:str, binning:list, name=None):
+        """Add a observable defined by a variable and bin specification
 
         Parameters
         ----------
@@ -654,14 +756,20 @@ class Interface:
             The variable to be binned.
         binning: list(float)
             A list of bin edges.
+        name: str
+            A label for the observable (optional)
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        new_bin_spec = {'variable':variable,'bins':binning}
-        self.requests[0]['json']['observables'].append([new_bin_spec])
+        new_obs_spec = {'binning':[{'variable':variable,'bins':binning}]}
+        if name and type(name) == str : new_obs_spec['name'] = name
+
+        if self._is_valid_obs_spec(new_obs_spec):
+            self._observables.append(new_obs_spec)
+
         self.store()
 
 
@@ -677,12 +785,14 @@ class Interface:
         muF: str
             Expression to define muF.
         """
-        if self.status == 'submitted' or self.status == 'finished':
+
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        self.requests[0]['json']['muR'] = muR
-        self.requests[0]['json']['muF'] = muF
+        self._muR = muR
+        self._muF = muF
+
         self.store()
 
 
@@ -698,12 +808,13 @@ class Interface:
             Specify PDF member
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        self.requests[0]['json']['pdf'] = pdf
-        self.requests[0]['json']['pdf_member'] = pdf_member
+        self._pdf = pdf
+        self._pdf_member = pdf_member
+
         self.store()
 
 
@@ -723,22 +834,23 @@ class Interface:
             String corresponding to a defined variation.
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
         if variation_type == '3-point':
-            self.variation_info.append({'type':'scale',
-                                        'nvar':3,
-                                        'error_method':'envelope',
-                                        'custom_list':None})
+            self._variation_info.append({'type':'scale',
+                                         'nvar':3,
+                                         'error_method':'envelope',
+                                         'custom_list':None})
         elif variation_type == '7-point':
-            self.variation_info.append({'type':'scale',
-                                        'nvar':7,
-                                        'error_method':'envelope',
-                                        'custom_list':None})
+            self._variation_info.append({'type':'scale',
+                                         'nvar':7,
+                                         'error_method':'envelope',
+                                         'custom_list':None})
         else:
             print('Requested variation type \"'+variation_type+'\" is not implemented')
+
         self.store()
 
 
@@ -757,22 +869,22 @@ class Interface:
             The method of PDF variation.
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
         if method == 'smpdf' or method == 'full':
-            self.variation_info.append({'type':'pdf - '+method,
-                                        'nvar':None,
-                                        'error_method':None,
-                                        'custom_list':None})
+            self._variation_info.append({'type':'pdf - '+method,
+                                         'nvar':None,
+                                         'error_method':None,
+                                         'custom_list':None})
         else:
             print('Requested PDF variation method \"'+method+'\" is not implemented')
 
         self.store()
 
 
-    def set_custom_variation(self, variations:list,method:str):
+    def set_custom_variation(self, variations:list, method:str):
         """Define custom variations.
 
         Parameters
@@ -783,25 +895,27 @@ class Interface:
             The method to compute the error from the variation
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        self.variation_info.append({'type':'custom',
-                                    'nvar':len(variations),
-                                    'error_method':method,
-                                    'custom_list':variations})
+        self._variation_info.append({'type':'custom',
+                                     'nvar':len(variations),
+                                     'error_method':method,
+                                     'custom_list':variations})
+
         self.store()
 
 
     def cuts(self, cuts):
         """Specify phase space cuts.
-        This allows to contrain the phase space of the
-        requested process. For processes which required generation cuts, the user
-        cuts have to be more exclusive then the generation cuts. If there are not
-        the result will be correct for combined cuts, generation and user cuts,
-        only (which may render the user cuts irrelevant). With other words the
-        generation cuts are **always** applied on top of the user cuts.
+
+        This allows to contrain the phase space for the requested process.
+        For processes which required generation cuts, the user cuts have to be
+        more exclusive then the generation cuts. If they are not the result will
+        correspond to the union of generation and user cuts only (which may
+        render the user cuts irrelevant). With other words the generation cuts
+        are **always** applied on top of the user cuts.
 
         Parameters
         ----------
@@ -809,30 +923,62 @@ class Interface:
             Each string has to be unequality equation of defined variables.
         """
 
-        if self.status == 'submitted' or self.status == 'finished':
+        if self._status == 'submitted' or self._status == 'finished':
             print('WARNING: job already submitted. Nothing changed')
             return
 
         if type(cuts) == str:
             if self._is_valid_cut(cuts):
-                if 'cuts' in self.requests[0]['json']:
-                    self.requests[0]['json']['cuts'].append(cuts)
-                else:
-                    self.requests[0]['json']['cuts'] = [cuts]
+                self._cuts.append(cuts)
             else:
                 print("WARNING: "+cuts+" is not a valid cut, will be ignored.")
         elif type(cuts) == list:
             for cut in cuts:
                 if self._is_valid_cut(cut):
-                    if 'cuts' in self.requests[0]['json']:
-                        self.requests[0]['json']['cuts'].append(cut)
-                    else:
-                        self.requests[0]['json']['cuts'] = [cut]
+                    self._cuts.append(cut)
                 else:
                     print("WARNING: "+cut+" is not a valid cut, will be ignored.")
         else:
-            print("WARNING: "+cut+" is not a valid cut, will be ignored.")
+            print("WARNING: "+cuts+" is not a valid cut, will be ignored.")
+
         self.store()
+
+
+    def jet_parameters(self, jet_parameters):
+        """Specify jet parameters.
+
+        This allows to specify parameters for the jet algorithm. This is
+        possible for processes where a corresponding default parameters set
+        is defined in the metadata.
+
+        The follwoing parameter are available:
+         - ``'nmaxjet'``: the number of jets returned by the algorithm
+         - ``'p'``      : the power of the kt-algorithm (-1: anti-kT,1: kt)
+         - ``'R'``      : the radius parameter
+
+        **NOTE**: Please be advised that, similar to cuts, results for processes
+        that require a jet-alogrithm on the generation level are only correct
+        for more exclusive definitions of the jet-algorithm. This is a bit more
+        subtle in case of the jet-algorithm case and therefore these parameters
+        should be used carefully.
+
+        Parameters
+        ----------
+        jet_parameters: dict
+            A dict containing the members 'nmaxjet'(int), 'p'(int), 'R'(float).
+        """
+
+        if self._status == 'submitted' or self._status == 'finished':
+            print('WARNING: job already submitted. Nothing changed')
+            return
+
+        if self._is_valid_jet_parameters(jet_parameters) and 'default_jet_parameters' in self._metadata :
+            self._jet_parameters = jet_parameters
+        else:
+            print("WARNING: jet_parameters is not valid, will be ignored.")
+
+        self.store()
+
 
     ###########################################################################
     # file operations                                                         #
@@ -841,42 +987,25 @@ class Interface:
     def store(self):
         """Store job information on drive
         """
+
         newdict = {
-            'proc':self.proc,
-            'valid_contributions':self.valid_contributions,
-            'custom_variables':self.custom_variables,
-            'variation_info':self.variation_info,
-            'variations':self.variations,
-            'requests':self.requests,
-            'status':self.status
+            'proc'                : self._proc,
+            'metadata'            : self._metadata,
+            'valid_contributions' : self._valid_contributions,
+            'contributions'       : self._contributions,
+            'custom_variables'    : self._custom_variables,
+            'muR'                 : self._muR,
+            'muF'                 : self._muF,
+            'pdf'                 : self._pdf,
+            'pdf_member'          : self._pdf_member,
+            'variation_info'      : self._variation_info,
+            'variations'          : self._variations,
+            'cuts'                : self._cuts,
+            'jet_parameters'      : self._jet_parameters,
+            'observables'         : self._observables,
+            'requests'            : self._requests,
+            'result'              : self._result,
+            'status'              : self._status
             }
 
-        with open(self.filename,'w') as fp:
-            json.dump(newdict,fp,indent=2)
-
-    def read_json(self,filename:str):
-        """Read in request specification from json file
-
-        Parameters
-        ----------
-        filename: str
-            Path specification for JSON file.
-        """
-        if self.status == 'submitted' or self.status == 'finished':
-            print('WARNING: job already submitted. Nothing changed')
-            return
-
-        with open(filename,'r') as fp:
-            self.requests[0]['json'] = json.load(fp)
-
-
-    def write_json(self,filename:str):
-        """Write histogram to specified file in json format
-
-        Parameters
-        ----------
-        filename: str
-            Path specification for JSON file.
-        """
-        with open(filename,'w') as fp:
-            json.dump(self.requests[0]['json'],fp,indent=2)
+        with open(self._filename,'w') as fp: json.dump(newdict,fp,indent=2)

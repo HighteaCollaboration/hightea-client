@@ -601,6 +601,25 @@ class Interface:
         return self._result
 
 
+    def raw_result(self):
+        """Return the raw results of a job.
+
+        The returned dictionary can be used within the hightea-plotting
+        routines.
+
+        Returns
+        -------
+        results: list(dict)
+            A list of dictionaries containing the results.
+        """
+
+        if self._status != 'finished':
+            print('WARNING: job not finished, no results available')
+            return
+
+        return [ req['result'] for req in self._requests ]
+
+
     def show_result(self):
         """Print the result in a human readable form
         """

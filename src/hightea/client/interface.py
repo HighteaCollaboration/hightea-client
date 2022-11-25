@@ -127,7 +127,7 @@ class Interface:
         print('Predefined variables')
         for var in metadata['variables'].keys():
             print('  ','{0: <10}'.format(var),' : ',metadata['variables'][var])
-        jet_parameters = metadata.get('default_jet_parameters')
+        jet_parameters = metadata.get('default_jet_parameters',{})
         if len(jet_parameters):
             print('Jet parameters      :', end='')
             for entry in jet_parameters:
@@ -674,20 +674,20 @@ class Interface:
                 header += (' '+var_info['type']+' ('+str(var_info['nvar'])+')'+' [%] |').rjust(24)
 
             print(header)
-            length = len(histo)
+            length = len(histo['binning'])
             for binit in range(0,length):
                 line = ''
                 # bins
                 for it in range(0,dimension):
-                    line += ' '+f_bin.format(histo[binit]['edges'][it]['min_value'])+' |'
-                    line += ' '+f_bin.format(histo[binit]['edges'][it]['max_value'])+' |'
+                    line += ' '+f_bin.format(histo['binning'][binit]['edges'][it]['min_value'])+' |'
+                    line += ' '+f_bin.format(histo['binning'][binit]['edges'][it]['max_value'])+' |'
 
-                line += ' '+f_xsec.format(histo[binit]['mean'])+' |'
-                line += ' '+f_xsec.format(histo[binit]['error'])+' |'
+                line += ' '+f_xsec.format(histo['binning'][binit]['mean'])+' |'
+                line += ' '+f_xsec.format(histo['binning'][binit]['error'])+' |'
                 for jt, var_info in enumerate(self._variation_info):
-                    var_ce = histo[binit]['mean']
-                    var_up = histo[binit]['sys_error'][jt]['pos']
-                    var_do = histo[binit]['sys_error'][jt]['neg']
+                    var_ce = histo['binning'][binit]['mean']
+                    var_up = histo['binning'][binit]['sys_error'][jt]['pos']
+                    var_do = histo['binning'][binit]['sys_error'][jt]['neg']
                     line += ' +'+f_var.format((var_up)/var_ce*100.)+\
                            '/ -'+f_var.format((var_do)/var_ce*100.)+'|'
                 print(line)

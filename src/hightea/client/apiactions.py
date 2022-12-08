@@ -34,9 +34,19 @@ class API:
         if not endpoint.endswith('/'):
             endpoint = endpoint + '/'
         self.endpoint = endpoint
-        self.auth = auth
+        self.set_auth(auth)
+
+    @property
+    def auth(self):
+        return self._auth
+
+    def set_auth(self, auth):
+        self._auth = auth
         if auth:
             self.session.headers["Authorization"] = f"Bearer {auth}"
+        else:
+            if "Authorization" in self.session.headers:
+                del self.session.headers["Authorization"]
 
 
     def simple_req_no_json(self, method, url, data=None, form_data=None):
@@ -79,12 +89,19 @@ class API:
         """
         return self.simple_req_no_json(method, url, data, form_data).json()
 
-    def login(self, username, password, admin=False):
+    def auth_code(self, username, password, admin=False):
         data = {"username": username, "password": password}
         if admin:
             data["scopes"] = "admin"
         return self.simple_req("post", "userauthtoken",form_data=data)
 
+    def login(self, username, password, admin=False):
+        res = self.auth_code(username, password, admin)
+        self.set_auth(res["access_token"])
+
+    def anonymous_login(self):
+        res = self.simple_req("post", "anonymousauthtoken")
+        self.set_auth(res["access_token"])
 
     def wait_token_impl(self, token):
         """Block for the specified token until it is completed.

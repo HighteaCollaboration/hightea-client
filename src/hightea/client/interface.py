@@ -22,7 +22,13 @@ class Interface:
     >>> job.show_result()
     """
 
-    def __init__(self,name:str ,directory='.', overwrite=False, *, endpoint=DEFAULT_ENDPOINT):
+    def __init__(self,
+                 name:str,
+                 directory='.',
+                 overwrite=False,
+                 *,
+                 auth=None,
+                 endpoint=DEFAULT_ENDPOINT):
         """Constructor, requires job name.
 
         If job already exists, job is loaded from the drive.
@@ -41,7 +47,12 @@ class Interface:
             If `True` existing job data is overwritten.
 
         """
-        self._api = API(endpoint=endpoint)
+        if auth:
+            self._api = API(auth=auth,endpoint=endpoint)
+        else:
+            self._api = API(endpoint=endpoint)
+            self._api.anonymous_login()
+
         self._name = name
         self._directory = directory
         # create directory in case it doesn't exist
@@ -257,7 +268,8 @@ class Interface:
                 count += 1
             # the DataHandler class modifies the first results by adding
             # the computed sys_errors
-            comb.compute_uncertainty(var_info['error_method'])
+            rescale_factor = var_info.get('rescale_factor',1.)
+            comb.compute_uncertainty(var_info['error_method'],rescale_factor)
             final_result = comb.get_result()
 
         final_result['info']['name'] = self._name

@@ -27,16 +27,19 @@ class RequestProblem(Exception):
 
 
 class API:
-    """Helper class to interact with the Hightea API.
-    """
+    """Helper class to interact with the Hightea API."""
 
-    def __init__(self, *, endpoint=DEFAULT_ENDPOINT):
+    def __init__(self, *, auth=None, endpoint=DEFAULT_ENDPOINT):
         self.session = requests.Session()
         if not endpoint.endswith('/'):
-            endpoint = endpoint+'/'
+            endpoint = endpoint + '/'
         self.endpoint = endpoint
+        self.auth = auth
+        if auth:
+            self.session.headers["Authorization"] = f"Bearer {auth}"
 
-    def simple_req_no_json(self, method, url, data=None):
+
+    def simple_req_no_json(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the
         response object. Raise a ``RequestProblem`` error in case of failure.
         The ``method`` and ``url`` parameters are passed to
@@ -44,7 +47,9 @@ class API:
         JSON.
         """
         try:
-            resp = self.session.request(method, f'{self.endpoint}{url}', json=data)
+            resp = self.session.request(
+                method, f'{self.endpoint}{url}', json=data, data=form_data
+            )
         except requests.RequestException as e:
             # https://github.com/urllib3/urllib3/pull/1911
             if isinstance(e, ConnectionError) and e.args:
@@ -55,6 +60,10 @@ class API:
         try:
             resp.raise_for_status()
         except requests.RequestException as e:
+            if resp.status_code == 401:
+                raise RequestProblem(
+                    f"Unauthorized. Obtain an access token from {self.endpoint}login"
+                ) from e
             try:
                 errdata = f'{e}. {resp.json()}'
             except Exception:
@@ -63,12 +72,19 @@ class API:
             raise RequestProblem(f"Server returned error: {errdata}") from e
         return resp
 
-    def simple_req(self, method, url, data=None):
+    def simple_req(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the JSON response.
         See :py:func:`API.simple_req_no_json`.
 
         """
-        return self.simple_req_no_json(method, url, data).json()
+        return self.simple_req_no_json(method, url, data, form_data).json()
+
+    def login(self, username, password, admin=False):
+        data = {"username": username, "password": password}
+        if admin:
+            data["scopes"] = "admin"
+        return self.simple_req("post", "userauthtoken",form_data=data)
+
 
     def wait_token_impl(self, token):
         """Block for the specified token until it is completed.

@@ -108,6 +108,12 @@ class API:
         res = self.simple_req("post", "anonymousauthtoken")
         self.set_auth(res["access_token"])
 
+    def make_invitation_url(self):
+        auth = self.simple_req("post", "users/invite")
+        qs = urllib.parse.urlencode({"invite": auth["access_token"]})
+        return self._root_url_replace(path="/register", query=qs)
+
+
     def wait_token_impl(self, token):
         """Block for the specified token until it is completed.
         Use this method to implement interactive behaviours while the

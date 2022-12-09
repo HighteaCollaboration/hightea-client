@@ -4,6 +4,7 @@ import json
 import requests
 from requests.exceptions import ConnectionError
 from urllib3.exceptions import ProtocolError
+import urllib.parse
 
 DEFAULT_ENDPOINT = 'https://www.hep.phy.cam.ac.uk/hightea/api/'
 
@@ -48,6 +49,9 @@ class API:
             if "Authorization" in self.session.headers:
                 del self.session.headers["Authorization"]
 
+    def _root_url_replace(self, **kwargs):
+        return urllib.parse.urlparse(self.endpoint)._replace(**kwargs).geturl()
+
 
     def simple_req_no_json(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the
@@ -72,7 +76,8 @@ class API:
         except requests.RequestException as e:
             if resp.status_code == 401:
                 raise RequestProblem(
-                    f"Unauthorized. Obtain an access token from {self.endpoint}login"
+                    f"Unauthorized. Obtain an authentication code from "
+                    f"{self._root_url_replace(path='/login')}"
                 ) from e
             try:
                 errdata = f'{e}. {resp.json()}'
@@ -92,7 +97,7 @@ class API:
     def auth_code(self, username, password, admin=False):
         data = {"username": username, "password": password}
         if admin:
-            data["scopes"] = "admin"
+            data["scope"] = "admin"
         return self.simple_req("post", "userauthtoken",form_data=data)
 
     def login(self, username, password, admin=False):

@@ -108,10 +108,21 @@ class API:
         res = self.simple_req("post", "anonymousauthtoken")
         self.set_auth(res["access_token"])
 
-    def make_invitation_url(self):
-        auth = self.simple_req("post", "users/invite")
-        qs = urllib.parse.urlencode({"invite": auth["access_token"]})
-        return self._root_url_replace(path="/register", query=qs)
+    def make_invitation_url(self, admin: bool = False):
+        """Generate a URL that can be used to register a new user.
+
+        Parameters
+        ----------
+        admin : bool
+           Whether the new user will be able to claim admin privileges.
+
+        Returns
+        -------
+        uel: str
+            A URL to send to the user
+        """
+        resp = self.simple_req_no_json("get", "invite", data={"admin": admin})
+        return resp.headers["Content-Location"]
 
 
     def wait_token_impl(self, token):

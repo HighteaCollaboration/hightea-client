@@ -28,7 +28,8 @@ class RequestProblem(Exception):
 
 
 class API:
-    """Helper class to interact with the Hightea API."""
+    """Helper class to interact with the HighTEA API.
+    """
 
     def __init__(self, *, auth=None, endpoint=DEFAULT_ENDPOINT):
         self.session = requests.Session()

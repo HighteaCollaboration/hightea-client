@@ -1,10 +1,10 @@
-HighTea client
+HighTEA client
 ==============
 
-User software for interacting with the High-TEA database from the Centre for
+User software for interacting with the HighTEA database from the Centre for
 Precision Studies in Particle Physics. See High-energy Theory Event Analysis:
 
-http://www.precision.hep.phy.cam.ac.uk/events-based-library/
+http://www.precision.hep.phy.cam.ac.uk/hightea/
 
 and the physics publication:
 
@@ -112,9 +112,9 @@ And specific help for each command can be obtained with
 $ highteacli --help <COMMAND>`
 ```
 
-The High-TEA API
+The HighTEA API
 ----------------
-Through the interface the users makes web requests to the High-TEA database
+Through the interface the users makes web requests to the HighTEA database
 service, which provides the following APIs:
 
   - ``api/processes``: Returns a key-value map where the keys are the

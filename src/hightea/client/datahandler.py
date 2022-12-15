@@ -47,7 +47,7 @@ class DataHandler:
             print("ERROR tried to combine incompatible data sets")
 
 
-    def compute_sys_error(self,values:list,method:str):
+    def compute_sys_error(self,values:list,method:str,rescale_factor=1.):
         """Compute the uncertainty from provided values and return dict
            containing 'error_sys_pos' and 'error_sys_neg'
         """
@@ -58,11 +58,11 @@ class DataHandler:
         sys_error_neg = 0.
         if method == 'envelope':
             central_value = values[0]
-            sys_error_pos = np.amax(values)-central_value
-            sys_error_neg = central_value-np.amin(values)
+            sys_error_pos = (np.amax(values)-central_value)*rescale_factor
+            sys_error_neg = (central_value-np.amin(values))*rescale_factor
         elif method == 'replicas':
             central_value = values[0]
-            sys_error_pos = np.sqrt(sum((np.array(values)-central_value)**2)/(len(values)-1))
+            sys_error_pos = np.sqrt(sum((np.array(values)-central_value)**2)/(len(values)-1))*rescale_factor
             sys_error_neg = -sys_error_pos
         elif method == 'hessian':
             central_value = values[0]
@@ -75,8 +75,8 @@ class DataHandler:
                 diff_neg = values[1+parit*2+1]-central_value
                 sum_diff_pos += (np.max([0,diff_pos,diff_neg]))**2
                 sum_diff_neg += (np.max([0,-diff_pos,-diff_neg]))**2
-            sys_error_pos = np.sqrt(sum_diff_pos)
-            sys_error_neg = -np.sqrt(sum_diff_neg)
+            sys_error_pos = np.sqrt(sum_diff_pos)*rescale_factor
+            sys_error_neg = -np.sqrt(sum_diff_neg)*rescale_factor
         elif method == 'symmhessian':
             central_value = values[0]
             #following 0901.0002 sec 6.
@@ -87,14 +87,14 @@ class DataHandler:
                 diff_pos = values[1+parit]-central_value
                 sum_diff_pos += (np.max([0,diff_pos,-diff_pos]))**2
                 sum_diff_neg += (np.max([0,diff_pos,-diff_pos]))**2
-            sys_error_pos = np.sqrt(sum_diff_pos)
-            sys_error_neg = -np.sqrt(sum_diff_neg)
+            sys_error_pos = np.sqrt(sum_diff_pos)*rescale_factor
+            sys_error_neg = -np.sqrt(sum_diff_neg)*rescale_factor
         else:
             print('method not implemented')
         return {'method':method,'pos':sys_error_pos,'neg':sys_error_neg}
 
 
-    def compute_uncertainty(self,method:str):
+    def compute_uncertainty(self,method:str,rescale_factor=1.):
         """Compute the uncertainty from the stored data and return dict
         """
         if len(self.raw_data) == 0 or self.result == None:
@@ -107,7 +107,7 @@ class DataHandler:
                 var_values = []
                 for kt in range(0,len(self.raw_data)):
                     var_values.append(self.raw_data[kt]['histograms'][it]['binning'][jt]['mean'])
-                sys_error = self.compute_sys_error(var_values,method)
+                sys_error = self.compute_sys_error(var_values,method,rescale_factor)
                 if 'sys_error' in self.result['histograms'][it]['binning'][jt]:
                     self.result['histograms'][it]['binning'][jt]['sys_error'].append(
                        {'method':method,'pos':sys_error['pos'],
@@ -121,7 +121,7 @@ class DataHandler:
         for kt in range(0,len(self.raw_data)):
             var_values.append(self.raw_data[kt]['fiducial_mean'])
 
-        sys_error = self.compute_sys_error(var_values,method)
+        sys_error = self.compute_sys_error(var_values,method,rescale_factor)
         if 'fiducial_sys_error' in self.result:
             self.result['fiducial_sys_error'].append(
                 {

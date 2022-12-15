@@ -4,6 +4,7 @@ import json
 import requests
 from requests.exceptions import ConnectionError
 from urllib3.exceptions import ProtocolError
+import urllib.parse
 
 DEFAULT_ENDPOINT = 'https://www.hep.phy.cam.ac.uk/hightea/api/'
 
@@ -27,16 +28,32 @@ class RequestProblem(Exception):
 
 
 class API:
-    """Helper class to interact with the Hightea API.
-    """
+    """Helper class to interact with the Hightea API."""
 
-    def __init__(self, *, endpoint=DEFAULT_ENDPOINT):
+    def __init__(self, *, auth=None, endpoint=DEFAULT_ENDPOINT):
         self.session = requests.Session()
         if not endpoint.endswith('/'):
-            endpoint = endpoint+'/'
+            endpoint = endpoint + '/'
         self.endpoint = endpoint
+        self.set_auth(auth)
 
-    def simple_req_no_json(self, method, url, data=None):
+    @property
+    def auth(self):
+        return self._auth
+
+    def set_auth(self, auth):
+        self._auth = auth
+        if auth:
+            self.session.headers["Authorization"] = f"Bearer {auth}"
+        else:
+            if "Authorization" in self.session.headers:
+                del self.session.headers["Authorization"]
+
+    def _root_url_replace(self, **kwargs):
+        return urllib.parse.urlparse(self.endpoint)._replace(**kwargs).geturl()
+
+
+    def simple_req_no_json(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the
         response object. Raise a ``RequestProblem`` error in case of failure.
         The ``method`` and ``url`` parameters are passed to
@@ -44,7 +61,9 @@ class API:
         JSON.
         """
         try:
-            resp = self.session.request(method, f'{self.endpoint}{url}', json=data)
+            resp = self.session.request(
+                method, f'{self.endpoint}{url}', json=data, data=form_data
+            )
         except requests.RequestException as e:
             # https://github.com/urllib3/urllib3/pull/1911
             if isinstance(e, ConnectionError) and e.args:
@@ -55,6 +74,11 @@ class API:
         try:
             resp.raise_for_status()
         except requests.RequestException as e:
+            if resp.status_code == 401:
+                raise RequestProblem(
+                    f"Unauthorized. Obtain an authentication code from "
+                    f"{self._root_url_replace(path='/login')}"
+                ) from e
             try:
                 errdata = f'{e}. {resp.json()}'
             except Exception:
@@ -63,12 +87,43 @@ class API:
             raise RequestProblem(f"Server returned error: {errdata}") from e
         return resp
 
-    def simple_req(self, method, url, data=None):
+    def simple_req(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the JSON response.
         See :py:func:`API.simple_req_no_json`.
 
         """
-        return self.simple_req_no_json(method, url, data).json()
+        return self.simple_req_no_json(method, url, data, form_data).json()
+
+    def auth_code(self, username, password, admin=False):
+        data = {"username": username, "password": password}
+        if admin:
+            data["scope"] = "admin"
+        return self.simple_req("post", "userauthtoken",form_data=data)
+
+    def login(self, username, password, admin=False):
+        res = self.auth_code(username, password, admin)
+        self.set_auth(res["access_token"])
+
+    def anonymous_login(self):
+        res = self.simple_req("post", "anonymousauthtoken")
+        self.set_auth(res["access_token"])
+
+    def make_invitation_url(self, admin: bool = False):
+        """Generate a URL that can be used to register a new user.
+
+        Parameters
+        ----------
+        admin : bool
+           Whether the new user will be able to claim admin privileges.
+
+        Returns
+        -------
+        uel: str
+            A URL to send to the user
+        """
+        resp = self.simple_req_no_json("get", "invite", data={"admin": admin})
+        return resp.headers["Content-Location"]
+
 
     def wait_token_impl(self, token):
         """Block for the specified token until it is completed.

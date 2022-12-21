@@ -143,6 +143,7 @@ class Interface:
             print('Jet parameters      :', end='')
             for entry in jet_parameters:
                 print(' ',entry,' : ',jet_parameters[entry])
+        print(metadata["details"])
 
 
     def _finalize_request(self):

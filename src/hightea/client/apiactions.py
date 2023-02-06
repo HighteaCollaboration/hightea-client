@@ -23,7 +23,7 @@ def saturate(it):
 
 class RequestProblem(Exception):
     """Base error that will be raised in case of problematic interactions with
-    the API. Use the ``__cause__`` attributte of the error to inspect the
+    the API. Use the ``__cause__`` attribute of the error to inspect the
     underlying problem."""
 
 
@@ -38,11 +38,28 @@ class API:
         self.endpoint = endpoint
         self.set_auth(auth)
 
+
     @property
     def auth(self):
+        """Return authentication token.
+
+        Returns
+        -------
+        token: str
+            A string containing the authentication token.
+        """
         return self._auth
 
+
     def set_auth(self, auth):
+        """Set authentication token to be used in requests in current session.
+        If authentication has already been set, remove it.
+
+        Parameters
+        ----------
+        auth: str
+            A string containing an authentication token.
+        """
         self._auth = auth
         if auth:
             self.session.headers["Authorization"] = f"Bearer {auth}"
@@ -50,7 +67,15 @@ class API:
             if "Authorization" in self.session.headers:
                 del self.session.headers["Authorization"]
 
+
     def _root_url_replace(self, **kwargs):
+        """Helper method to complete the API URL.
+
+        Returns
+        -------
+        url: str
+            A URL locating the correct endpoint.
+        """
         return urllib.parse.urlparse(self.endpoint)._replace(**kwargs).geturl()
 
 
@@ -60,6 +85,25 @@ class API:
         The ``method`` and ``url`` parameters are passed to
         :py:func:`requests.Request.request`. The ``data`` object is encoded as
         JSON.
+
+        Parameters
+        ----------
+        method: str
+            Specifying the request method, i.e. "GET", "POST" etc.
+
+        url: str
+            Request destination.
+
+        data: dict
+            The data to be transmitted in form of a dictionary.
+
+        form_data: dict
+            Additional information to added to the request. Used for authentication.
+
+        Returns
+        -------
+        response: Response object
+            A object containing the response information. See requests implementation.
         """
         try:
             resp = self.session.request(
@@ -88,26 +132,70 @@ class API:
             raise RequestProblem(f"Server returned error: {errdata}") from e
         return resp
 
+
     def simple_req(self, method, url, data=None, form_data=None):
         """Call the endpoint with the specified parameters and return the JSON response.
         See :py:func:`API.simple_req_no_json`.
 
+        Returns
+        -------
+        response: dict
+            Returns the response to the request in JSON/dict format.
+
         """
         return self.simple_req_no_json(method, url, data, form_data).json()
 
+
     def auth_code(self, username, password, admin=False):
+        """Implementation of the authentication request.
+
+        Parameters
+        ----------
+        username: str
+            A string containing the username
+
+        password: str
+            A string containing the password
+
+        admin: bool
+            Request admin login (requires admin privileges) (optional).
+
+        Returns
+        -------
+        token: str
+            The authentication token to be used in requests.
+        """
         data = {"username": username, "password": password}
         if admin:
             data["scope"] = "admin"
         return self.simple_req("post", "userauthtoken",form_data=data)
 
+
     def login(self, username, password, admin=False):
+        """Perform login, i.e. submit username and password and store authentication token.
+
+        Parameters
+        ----------
+        username: str
+            A string containing the username
+
+        password: str
+            A string containing the password
+
+        admin: bool
+            Request admin login (requires admin privileges) (optional).
+
+        """
         res = self.auth_code(username, password, admin)
         self.set_auth(res["access_token"])
 
+
     def anonymous_login(self):
+        """A method to anonymously login. This functionality might be removed in the future.
+        """
         res = self.simple_req("post", "anonymousauthtoken")
         self.set_auth(res["access_token"])
+
 
     def make_invitation_url(self, admin: bool = False):
         """Generate a URL that can be used to register a new user.
@@ -119,7 +207,7 @@ class API:
 
         Returns
         -------
-        uel: str
+        url: str
             A URL to send to the user
         """
         resp = self.simple_req_no_json("get", "invite", data={"admin": admin})
@@ -135,7 +223,7 @@ class API:
         Parameters
         ------
         token: str
-            A token represnting a previous result, to wait for.
+            A token representing a previous result, to wait for.
 
         Yields
         ------
@@ -151,14 +239,14 @@ class API:
             elif st in ('errored', 'completed'):
                 return
 
+
     def get_plot(self, token):
-        """
-        Return an histogram plot for a computed token.
+        """Return an histogram plot for a computed token.
 
         Parameters
         ----------
         token: str
-            A token represnting a previous result, to wait for.
+            A token representing a previous result, to wait for.
 
         Returns
         -------
@@ -174,13 +262,14 @@ class API:
         resp = self.simple_req_no_json('get', f'token/{token}/plot')
         return resp.content
 
+
     def wait_token_json(self, token):
         """Block for the specified token and return a JSON result.
 
         Parameters
         ----------
         token: str
-            A token represnting a previous result, to wait for.
+            A token representing a previous result, to wait for.
 
         Returns
         -------
@@ -194,15 +283,15 @@ class API:
             elif st == 'completed':
                 return json.loads(token_res['result'])
 
+
     def wait_token_plot(self, token):
-        """
-        Block until the specified token is available. When it is, return an
+        """Block until the specified token is available. When it is, return an
         histogram representation.
 
         Parameters
         ----------
         token: str
-            A token represnting a previous result, to wait for.
+            A token representing a previous result, to wait for.
 
         Returns
         -------
@@ -216,9 +305,9 @@ class API:
             elif st == 'completed':
                 return self.get_plot(token)
 
+
     def list_pdfs(self):
-        """
-        List the available PDF for central value computations.
+        """List the available PDF for central value computations.
 
         Returns
         -------
@@ -227,9 +316,10 @@ class API:
         """
         return self.simple_req('get', 'available_pdfs')
 
+
     def list_processes(self):
         """
-        List the processes avaialable in the server.
+        List the processes available in the server.
 
         Returns
         -------
@@ -238,8 +328,28 @@ class API:
         """
         return self.simple_req('get', 'processes')
 
+
     def request_hist(self, proc, data):
+        """Submit histogram request to server.
+
+        Parameters
+        ----------
+        proc: str
+            A tag specifying a process. See :py:func:`API.list_processes`.
+
+        data: dict
+            A dictionary defining the details of the request. For information
+            about the expected structure and possible options please refer to
+            the README (https://github.com/HighteaCollaboration/hightea-client)
+
+        Returns
+        -------
+        token: str
+            A token representing the request. Results can be obtained with
+            :py:func:`API.wait_token_json` or  :py:func:`API.wait_token_plot`.
+        """
         return self.simple_req('post', f'processes/{proc}/hist', data=data)
+
 
     def check_token(self, token):
         """
@@ -248,7 +358,7 @@ class API:
         Parameters
         ----------
         token: str
-            A token represnting a previous result, to wait for.
+            A token representing a previous result, to wait for.
 
         Returns
         -------

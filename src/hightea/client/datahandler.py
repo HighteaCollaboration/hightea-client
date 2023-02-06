@@ -26,17 +26,43 @@ class DataHandler:
         self.result = data.copy()
 
     def get_result(self):
-        """Return the result
+        """Return the result.
+
+        Returns
+        -------
+        result: dict
+            A dictionary which corresponds to the histogram data used in the
+            constructor but exented by systemic errors if
+            :py:func:`DataHandler.compute_uncertainty` has been used.
         """
         return self.result
 
     def is_compatible(self,data):
-        """Checks if the data sets are compatible
+        """Checks if the data set is compatible with base line data.
+
+        Returns
+        -------
+        test: bool
+            True if the added data set is compatible
         """
+
+        # first check if it contains the same number of histograms
+        if len(self.result['histograms']) != len(data['histograms']):
+            return False
+
+        # then iterate over all the histograms
+        for it in range(0,len(self.result['histograms'])):
+            if len(self.result['histograms'][it]['binning']) != len(data['histograms'][it]['binning'])
+                return False
+            for jt in range(0,len(self.result['histograms'][it]['binning'])):
+                if self.result['histograms'][it]['binning'][jt]['edges'] != data['histograms'][it]['binning'][jt]['edges']
+                    return False
         return True
 
+
     def add_data(self,data:dict):
-        """Adds the result of a request to handler
+        """Adds the result of a request to handler. Prints an error if
+        the data set is not compatible.
         """
         if len(self.raw_data) == 0:
             self.raw_data.append(data)
@@ -49,7 +75,32 @@ class DataHandler:
 
     def compute_sys_error(self,values:list,method:str,rescale_factor=1.):
         """Compute the uncertainty from provided values and return dict
-           containing 'error_sys_pos' and 'error_sys_neg'
+           containing 'error_sys_pos' and 'error_sys_neg'.
+
+        Parameters
+        ----------
+        values: list(float)
+            A list of floats representing the variation of the value
+
+        method: str
+            A string specifying the method to compute the uncertainty from
+            the provided list of numbers. Implemented are:
+            - 'envelope': Return the maximal positive and negative
+                distance to the central value.
+            - 'replicas': Computing the uncertainty from STD of the numbers.
+            - 'hessian': Assumes that the values correspond to list of pairs
+                (+- variation) and computes the uncertainty according to
+                0901.0002 sec 6.
+            - 'symmhessian': Same as 'hessian' assuming however symmetric
+                uncertainties.
+
+        rescale_factor: float (default 1)
+            Rescale the computed uncertainty with a factor.
+
+        Returns
+        -------
+        result : dict
+            A dict {'method':method,'pos':sys_error_pos,'neg':sys_error_neg}
         """
         if len(values) == 0:
             return {'method':method,'pos':0.,'neg':0.}
@@ -95,7 +146,8 @@ class DataHandler:
 
 
     def compute_uncertainty(self,method:str,rescale_factor=1.):
-        """Compute the uncertainty from the stored data and return dict
+        """Compute the uncertainty from the stored data. The result is stored
+        internally and can be accesssed with :py:func:`DataHandler.get_result`.
         """
         if len(self.raw_data) == 0 or self.result == None:
             return

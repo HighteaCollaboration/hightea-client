@@ -17,7 +17,7 @@ class Interface:
     >>> job = hightea('jobname')
     >>> job.process('pp_ttx_13TeV')
     >>> job.contribution('LO')
-    >>> job.binning('pt_top',[0.,50.,100.,150.,200.,250.])
+    >>> job.observable('pt_t',[0.,50.,100.,150.,200.,250.])
     >>> job.request()
     >>> job.show_result()
     """
@@ -45,6 +45,13 @@ class Interface:
 
         overwrite: bool, default False
             If `True` existing job data is overwritten.
+
+        auth: str
+            Authentication token. If not present use anonymous login.
+            (optional)
+
+        endpoint: str
+            Request endpoint. Debugging tool. (optional)
 
         """
         if auth:
@@ -114,6 +121,15 @@ class Interface:
 
     def _print_metadata(self, proc, metadata):
         """Nicely formatted metadata printout
+
+        Parameters
+        ----------
+        proc: str
+            Process tag
+
+        metadata: dict
+            A dictionary containing the metadata as returned by the HighTEA
+            API.
         """
         print('  ',metadata['name'],'\n')
         print('Process tag         : ',proc.replace('processes/',''),
@@ -285,6 +301,11 @@ class Interface:
 
     def _is_valid_contribution(self, con):
         """Return true if con is a correct contribution.
+
+        Parameters
+        ----------
+        con: str
+            A string specifying a contribution
         """
         if con in self._valid_contributions:
             return True
@@ -294,6 +315,12 @@ class Interface:
 
     def _is_valid_obs_spec(self, obs_spec):
         """Return true if bin is correct observable specification.
+
+        Parameters
+        ----------
+        obs_spec: dict
+            A dictionary specifying an observable (dict containing a valid
+            'binning' member).
         """
         if type(obs_spec) == dict and 'binning' in obs_spec:
             success = True
@@ -307,15 +334,27 @@ class Interface:
 
     def _is_valid_bin_spec(self, bin_spec):
         """Return true if bin is correct 1D bin specification.
+
+        Parameters
+        ----------
+        bin_spec:
+            A dictionary containing a 'variable' and 'bins' member.
         """
         if type(bin_spec) == dict and 'variable' in bin_spec and 'bins' in bin_spec:
+            for it in range(0,len(bin_spec['bins'])-1):
+                if bin_spec['bins'][it] >= bin_spec['bins'][it+1]: return False
             return True
         else:
             return False
 
 
     def _is_valid_process(self, proc):
-        """Return true if proc is a string
+        """Return true if proc is in a valid format
+
+        Parameters
+        ----------
+        proc: str
+            A string specifying a process.
         """
         if type(proc) == str:
             return True
@@ -325,6 +364,11 @@ class Interface:
 
     def _is_valid_cut(self, cut):
         """Return true if cut is a valid cut
+
+        Parameters
+        ----------
+        cut: str
+            A string specifying a cut
         """
         if type(cut) == str:
             return True;
@@ -334,6 +378,11 @@ class Interface:
 
     def _is_valid_jet_parameters(self, jet_parameters):
         """Return true if jet_parameters is a valid jet_parameters spec
+
+        Parameters
+        ----------
+        jet_parameters: dict
+            A dict containing "maxnjet", "p" and "R".
         """
         if type(jet_parameters) == dict:
             success = True
@@ -350,7 +399,7 @@ class Interface:
     ###########################################################################
 
     def list_processes(self, detailed=True):
-        """Request the list of available processes from the server
+        """Request the list of available processes from the server.
 
         Parameters
         ----------
@@ -372,7 +421,7 @@ class Interface:
 
 
     def list_pdfs(self):
-        """Request the list of available pdfs from the server
+        """Request the list of available pdfs from the server.
         """
         pdfs = self._api.list_pdfs()
         for pdf in pdfs: print(pdf)
@@ -391,6 +440,7 @@ class Interface:
         ----------
         proc: str
             String containing the process key.
+
         verbose: bool, default True
             If `True` the process information is printed.
         """
@@ -423,6 +473,7 @@ class Interface:
         ----------
         name: str
             A name for the new variable
+
         definition: str
             The definition can be given in terms of mathematical functions of the
             already defined variables. Expressions are written using the
@@ -942,7 +993,7 @@ class Interface:
     def cuts(self, cuts):
         """Specify phase space cuts.
 
-        This allows to contrain the phase space for the requested process.
+        This allows to constrain the phase space for the requested process.
         For processes which required generation cuts, the user cuts have to be
         more exclusive then the generation cuts. If they are not the result will
         correspond to the union of generation and user cuts only (which may
@@ -952,7 +1003,7 @@ class Interface:
         Parameters
         ----------
         cuts: list(str)
-            Each string has to be unequality equation of defined variables.
+            Each string has to be inequality equation of defined variables.
         """
 
         if self._status == 'submitted' or self._status == 'finished':
@@ -983,13 +1034,13 @@ class Interface:
         possible for processes where a corresponding default parameters set
         is defined in the metadata.
 
-        The follwoing parameter are available:
+        The following parameter are available:
          - ``'nmaxjet'``: the number of jets returned by the algorithm
          - ``'p'``      : the power of the kt-algorithm (-1: anti-kT,1: kt)
          - ``'R'``      : the radius parameter
 
         **NOTE**: Please be advised that, similar to cuts, results for processes
-        that require a jet-alogrithm on the generation level are only correct
+        that require a jet-algorithm on the generation level are only correct
         for more exclusive definitions of the jet-algorithm. This is a bit more
         subtle in case of the jet-algorithm case and therefore these parameters
         should be used carefully.

@@ -52,10 +52,10 @@ class DataHandler:
 
         # then iterate over all the histograms
         for it in range(0,len(self.result['histograms'])):
-            if len(self.result['histograms'][it]['binning']) != len(data['histograms'][it]['binning'])
+            if len(self.result['histograms'][it]['binning']) != len(data['histograms'][it]['binning']) :
                 return False
             for jt in range(0,len(self.result['histograms'][it]['binning'])):
-                if self.result['histograms'][it]['binning'][jt]['edges'] != data['histograms'][it]['binning'][jt]['edges']
+                if self.result['histograms'][it]['binning'][jt]['edges'] != data['histograms'][it]['binning'][jt]['edges'] :
                     return False
         return True
 

@@ -23,6 +23,7 @@ setup(
         "numpy",
         "requests",
         "urllib3",
+        "yaml",
     ],
     python_requires = ">=3.7",
 )

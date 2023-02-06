@@ -15,7 +15,7 @@ class Interface:
     Examples
     --------
     >>> job = hightea('jobname')
-    >>> job.process('pp_ttx_13TeV')
+    >>> job.process('pp_tt_13000_172.5')
     >>> job.contribution('LO')
     >>> job.observable('pt_t',[0.,50.,100.,150.,200.,250.])
     >>> job.request()

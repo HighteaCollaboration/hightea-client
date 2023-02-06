@@ -1,2 +1,4 @@
 numpy
 requests
+urllib3
+pyyaml

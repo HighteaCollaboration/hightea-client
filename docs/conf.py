@@ -42,7 +42,8 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'recommonmark'
+#    'myst_parser',
+    "m2r2",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,7 +57,6 @@ templates_path = ['_templates']
 source_suffix = {
     '.rst': 'restructuredtext',
     '.txt': 'markdown',
-    '.md': 'markdown',
 }
 
 autosectionlabel_prefix_document = True

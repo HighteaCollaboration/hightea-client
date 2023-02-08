@@ -8,12 +8,13 @@ class DataHandler:
        from raw scale/PDF variations.
 
        The basic assumption is that the data used for initialization is central
-       result. The added data (with add_data()) is assumed to be the variations.
+       result. The added data (with :py:func:`DataHandler.add_data()`) is assumed to be the variations.
        The uncertainties are computed from all the data according to the
        specified method ('envelope','replicas','hessian','symhessian') by
-       invoking compute_uncertainties().  Each call to compute_uncertainties
+       invoking :py:func:`DataHandler.compute_uncertainties()`.  Each call to compute_uncertainties
        adds a "sys_error" to all bins and fiducial cross section.
-       If compute_uncertainties is not invoked result() returns the input.
+       If compute_uncertainties is not invoked :py:func:`DataHandler.get_result()`
+       returns the input.
     """
 
     def __init__(self,data):
@@ -75,24 +76,19 @@ class DataHandler:
 
     def compute_sys_error(self,values:list,method:str,rescale_factor=1.):
         """Compute the uncertainty from provided values and return dict
-           containing 'error_sys_pos' and 'error_sys_neg'.
+        containing 'error_sys_pos' and 'error_sys_neg'.
 
         Parameters
         ----------
-        values: list(float)
+        values: list (float)
             A list of floats representing the variation of the value
 
         method: str
-            A string specifying the method to compute the uncertainty from
-            the provided list of numbers. Implemented are:
-            - 'envelope': Return the maximal positive and negative
-                distance to the central value.
-            - 'replicas': Computing the uncertainty from STD of the numbers.
-            - 'hessian': Assumes that the values correspond to list of pairs
-                (+- variation) and computes the uncertainty according to
-                0901.0002 sec 6.
-            - 'symmhessian': Same as 'hessian' assuming however symmetric
-                uncertainties.
+            A string specifying the method to compute the uncertainty from the provided list of numbers. Implemented are:
+             - ``'envelope'``: Return the maximal positive and negative distance to the central value.
+             - ``'replicas'``: Computing the uncertainty from STD of the numbers.
+             - ``'hessian'``: Assumes that the values correspond to list of pairs and computes the uncertainty according to 0901.0002 sec 6.
+             - ``'symmhessian'``: Same as 'hessian' assuming however symmetric uncertainties.
 
         rescale_factor: float (default 1)
             Rescale the computed uncertainty with a factor.
@@ -195,7 +191,7 @@ class DataHandler:
 
         It is assumed that the added data represent a full PDF variation.
         The header files contain some standard parameters which might be
-        adapted by the user through the `parameter' argument.
+        adapted by the user through the `parameter` argument.
         A directory as specified is created.
 
         Parameters

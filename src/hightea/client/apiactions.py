@@ -329,6 +329,17 @@ class API:
         return self.simple_req('get', 'processes')
 
 
+    def get_metadata(self, proc):
+        """Retrieve metadata for specified process
+
+        Returns
+        -------
+        metadata: dict
+            A dictionary containing meta data.
+        """
+        return self.simple_req('get','processes/'+proc)
+
+
     def request_hist(self, proc, data):
         """Submit histogram request to server.
 

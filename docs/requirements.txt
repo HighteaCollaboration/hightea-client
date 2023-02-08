@@ -2,3 +2,4 @@ numpy
 requests
 urllib3
 pyyaml
+m2r2

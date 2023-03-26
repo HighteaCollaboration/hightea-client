@@ -156,7 +156,7 @@ class Interface:
             print('  ','{0: <10}'.format(var),' : ',metadata['variables'][var])
         jet_parameters = metadata.get('default_jet_parameters',{})
         if len(jet_parameters):
-            print('Jet parameters      :', end='')
+            print('Jet parameters      :')
             for entry in jet_parameters:
                 print(' ',entry,' : ',jet_parameters[entry])
         print(metadata["details"])
@@ -588,6 +588,7 @@ class Interface:
                                         data=self._requests[it]['json'])
             self._requests[it]['token'] = resp['token']
             self._requests[it]['status'] = 'submitted'
+            print('token request ',it,' : ',self._requests[it]['token'])
 
         self._status = 'submitted'
         print('request submitted : ',datetime.now())
@@ -691,9 +692,12 @@ class Interface:
         res = self.result()
         info = self._requests[0]['json']
 
-        f_bin = "{0:9.5g}"
-        f_xsec = "{0:11.5g}"
-        f_var  = "{0:9.2g}"
+        f_bin = "{:9.3E}"
+        f_xsec = "{:11.3E}"
+        f_xsecerr = "{:7.1E}"
+        f_xsecerr2 = "{:7.1E}"
+        f_var  = "{:7.1E}"
+        f_var2  = "{:7.1E}"
 
         print('Name                    : ',self._name)
         print('Contributions           : ',self._contributions)
@@ -701,17 +705,20 @@ class Interface:
         if self._muF: print('muF                     : ',self._muF)
         if self._pdf: print('pdf                     : ',self._pdf,',',self._pdf_member)
 
-        print('fiducial xsection       : ',f_xsec.format(res['fiducial_mean']))
-        print('fiducial xsection error : ',f_xsec.format(res['fiducial_error']))
+        print('fiducial xsection [pb]  : ',f_xsec.format(res['fiducial_mean']))
+        print('  mc-error [pb] ([%])   : ',f_xsecerr.format(res['fiducial_error'])+' ('+
+                                           f_xsecerr2.format(res['fiducial_error']/res['fiducial_mean']*100.)+')')
 
         for it, var_info in enumerate(self._variation_info):
-            print('systematic unc. [%]     : '+var_info['type']+' ('+str(var_info['nvar'])+')')
+            print('sys. unc. [pb] ([%])    : '+var_info['type']+' ('+str(var_info['nvar'])+')')
             var_ce = res['fiducial_mean']
             var_up = res['fiducial_sys_error'][it]['pos']
             var_do = res['fiducial_sys_error'][it]['neg']
             print('                        : '+\
-                  ' +'+f_var.format((var_up)/var_ce*100.)+\
-                  '/ -'+f_var.format((var_do)/var_ce*100.))
+                  ' +'+f_var.format(var_up)+\
+                    ' ('+f_var2.format((var_up)/var_ce*100.)+')'+\
+                  ' / -'+f_var.format(var_do)+\
+                    ' ('+f_var2.format((var_do)/var_ce*100.)+')')
 
         # compute and print histograms
         for it, histo in enumerate(res['histograms']):
@@ -733,9 +740,9 @@ class Interface:
             for jt in range(0,dimension):
                 header += ' bin'+str(jt+1)+' low  |'
                 header += ' bin'+str(jt+1)+' high |'
-            header += ' sigma [pb]  | mc-err [pb] |'
+            header += ' sigma [pb]  | mc-err [pb] ([%]) |'
             for jt, var_info in enumerate(self._variation_info):
-                header += (' '+var_info['type']+' ('+str(var_info['nvar'])+')'+' [%] |').rjust(24)
+                header += (' '+var_info['type']+' ('+str(var_info['nvar'])+')'+' [pb] ([%])').ljust(41)+'|'
 
             print(header)
             length = len(histo['binning'])
@@ -747,13 +754,16 @@ class Interface:
                     line += ' '+f_bin.format(histo['binning'][binit]['edges'][it]['max_value'])+' |'
 
                 line += ' '+f_xsec.format(histo['binning'][binit]['mean'])+' |'
-                line += ' '+f_xsec.format(histo['binning'][binit]['error'])+' |'
+                line += ' '+f_xsecerr.format(histo['binning'][binit]['error'])+\
+                           ' ('+f_xsecerr2.format(histo['binning'][binit]['error']/histo['binning'][binit]['mean']*100.) +') |'
                 for jt, var_info in enumerate(self._variation_info):
                     var_ce = histo['binning'][binit]['mean']
                     var_up = histo['binning'][binit]['sys_error'][jt]['pos']
                     var_do = histo['binning'][binit]['sys_error'][jt]['neg']
-                    line += ' +'+f_var.format((var_up)/var_ce*100.)+\
-                           '/ -'+f_var.format((var_do)/var_ce*100.)+'|'
+                    line += ' +'+f_var.format(var_up)+\
+                             ' ('+f_var2.format((var_up)/var_ce*100.)+')'+\
+                           ' / -'+f_var.format(var_do)+\
+                             ' ('+f_var2.format((var_do)/var_ce*100.)+') |'
                 print(line)
             print('\n')
 
@@ -795,49 +805,14 @@ class Interface:
         self.store()
 
 
-    def observable(self, observable):
-        """Define the binning for observables via dictionaries.
-
-        Each dict is check to have at least the "binning" key words.
-
-        Parameters
-        ----------
-        binning: dict or list(dict)
-            A dict (or list of dicts) defining the observables(s)
-        """
-
-        if self._status == 'submitted' or self._status == 'finished':
-            print('WARNING: job already submitted. Nothing changed')
-            return
-
-        success = True
-        if type(observable) == list:
-            for e in binning:
-                if self._is_valid_obs_spec(e) == False:
-                    success = False
-            if success:
-                for e in binning:
-                  self._observables.append(e)
-        elif self._is_valid_obs_spec(observable):
-            self._observables.append(observable)
-        else:
-            success = False
-
-        if success == False:
-            print('WARNING: observable(observable)')
-            print(' -> binning has to be a single (or list of) observable specification.')
-
-        self.store()
-
-
-    def observable(self, variable:str, binning:list, name=None):
+    def observable(self, variable, binning, name=None):
         """Add a observable defined by a variable and bin specification
 
         Parameters
         ----------
-        variable: str
+        variable: str or list(str)
             The variable to be binned.
-        binning: list(float)
+        binning: list(float) or list(list(float))
             A list of bin edges.
         name: str
             A label for the observable (optional)
@@ -847,8 +822,15 @@ class Interface:
             print('WARNING: job already submitted. Nothing changed')
             return
 
-        new_obs_spec = {'binning':[{'variable':variable,'bins':binning}]}
+        new_obs_spec = {'binning':[]}
         if name and type(name) == str : new_obs_spec['name'] = name
+
+        if type(variable) == str:
+            new_obs_spec['binning'] = [{'variable':variable,'bins':binning}]
+        elif type(variable) == list and len(variable) == len(binning):
+            for it in range(0,len(variable)):
+                new_obs_spec['binning'].append({'variable':variable[it],
+                                                'bins':binning[it]})
 
         if self._is_valid_obs_spec(new_obs_spec):
             self._observables.append(new_obs_spec)
@@ -1035,7 +1017,7 @@ class Interface:
         is defined in the metadata.
 
         The following parameter are available:
-         - ``'nmaxjet'``: the number of jets returned by the algorithm
+         - ``'maxnjet'``: the number of jets returned by the algorithm
          - ``'p'``      : the power of the kt-algorithm (-1: anti-kT,1: kt)
          - ``'R'``      : the radius parameter
 
@@ -1048,7 +1030,7 @@ class Interface:
         Parameters
         ----------
         jet_parameters: dict
-            A dict containing the members 'nmaxjet'(int), 'p'(int), 'R'(float).
+            A dict containing the members 'maxnjet'(int), 'p'(int), 'R'(float).
         """
 
         if self._status == 'submitted' or self._status == 'finished':

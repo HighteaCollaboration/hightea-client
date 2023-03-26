@@ -210,7 +210,10 @@ class API:
         url: str
             A URL to send to the user
         """
-        resp = self.simple_req_no_json("get", "invite", data={"admin": admin})
+        if admin:
+            resp = self.simple_req_no_json("get", "invite?admin=true", data={"admin": True})
+        else:
+            resp = self.simple_req_no_json("get", "invite", data={"admin": False})
         return resp.headers["Content-Location"]
 
 

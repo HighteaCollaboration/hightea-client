@@ -67,11 +67,12 @@ Here a description of the most user-relevant APIs:
 
       * `"muF"` (optional, string): An expression corresponding to the factorization scale used for reweighing.
 
-      * `"contributions"` (list of strings, optional): A subset of the contributions in a process. If specified, only the weights associated to the listed contributions will be taken into account. By default all contributions are evaluated.
+      * `"contributions"` (list of strings, optional): A subset of the contributions or contributions groups in a process, typically specifying the perturbative order. If specified, only the weights associated to the listed contributions will be taken into account. By default all contributions are evaluated, which corresponds to highest perturbative order.
 
     An example of a valid request payload is:
     ```json
     {
+        "contributions":["NNLO"],
         "custom_variables": {"circle": "sqrt(pt_top**2 + pt_tbar**2)"},
         "cuts": ["y_tbar <  4", "pt_tbar > 10"],
         "pdf": "CT14nnlo",

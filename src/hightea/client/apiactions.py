@@ -284,7 +284,7 @@ class API:
             if st == 'errored':
                 raise RuntimeError("Bad status")
             elif st == 'completed':
-                return json.loads(token_res['result'])
+                return token_res['result']
 
 
     def wait_token_plot(self, token):

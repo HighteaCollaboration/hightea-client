@@ -25,7 +25,7 @@ class Spinner:
         self.delay = delay
 
     def spinner_task(self):
-        while not self.event.isSet():
+        while not self.event.is_set():
             sys.stdout.write(next(self.spinner_generator))
             sys.stdout.flush()
             time.sleep(self.delay)
@@ -64,8 +64,8 @@ class ErrorPrintAPI(apiactions.API):
 
 
 class CommandLineApp:
-    def __init__(self):
-        self.api = ErrorPrintAPI()
+    def __init__(self, **kwargs):
+        self.api = ErrorPrintAPI(**kwargs)
 
     def list_pdfs(self):
         lpdfs = self.api.list_pdfs()
@@ -88,7 +88,7 @@ class CommandLineApp:
         token = resp['token']
         print(f"Processing request. The token is {token}.", file=sys.stderr)
         print(
-            f"Wait for the result here or run\n\n    hightea token {token}\n",
+            f"Wait for the result here or run\n\n    highteacli token {token}\n",
             file=sys.stderr,
         )
         self.wait_token(token, do_plot, json_fname, plot_fname)
@@ -170,6 +170,8 @@ def _add_common_args(parser):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--auth", help="API authentication token")
+    parser.add_argument("--endpoint", help="API server", default=apiactions.DEFAULT_ENDPOINT)
     commands = parser.add_subparsers(title='commands', dest='command')
     commands.add_parser('lproc', help='List available processes')
     commands.add_parser('lpdf', help='List available pdfs')
@@ -185,7 +187,7 @@ def main():
 
     ns = parser.parse_args()
     cmd = ns.command
-    app = CommandLineApp()
+    app = CommandLineApp(auth=ns.auth, endpoint=ns.endpoint)
     if cmd == 'lpdf':
         app.list_pdfs()
     elif cmd == 'lproc':
@@ -202,6 +204,9 @@ def main():
         json_fname = ns.output
         plot_fname = ns.plot_output
         app.wait_token(ns.token, do_plot, json_fname, plot_fname)
+    else:
+        parser.print_usage()
+        sys.exit(1)
 
 
 if __name__ == '__main__':

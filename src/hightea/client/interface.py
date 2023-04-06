@@ -617,7 +617,7 @@ class Interface:
             if req['status'] == 'submitted':
                 resp = self._api.simple_req('get',f'token/'+req['token'])
                 if resp['status'] == 'completed':
-                    self._requests[jt]['result'] = json.loads(resp['result'])
+                    self._requests[jt]['result'] = resp['result']
                     self._requests[jt]['status'] = 'completed'
                 elif resp == 'errored':
                     print('error occured    : ',datetime.now())

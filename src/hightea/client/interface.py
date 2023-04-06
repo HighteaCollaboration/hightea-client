@@ -386,7 +386,7 @@ class Interface:
         """
         if type(jet_parameters) == dict:
             success = True
-            if 'maxnjet' not in jet_parameters: success = False
+            if 'maxnjets' not in jet_parameters: success = False
             if 'p' not in jet_parameters: success = False
             if 'R' not in jet_parameters: success = False
             return success;
@@ -1017,9 +1017,9 @@ class Interface:
         is defined in the metadata.
 
         The following parameter are available:
-         - ``'maxnjet'``: the number of jets returned by the algorithm
-         - ``'p'``      : the power of the kt-algorithm (-1: anti-kT,1: kt)
-         - ``'R'``      : the radius parameter
+         - ``'maxnjets'``: the number of jets returned by the algorithm
+         - ``'p'``       : the power of the kt-algorithm (-1: anti-kT,1: kt)
+         - ``'R'``       : the radius parameter
 
         **NOTE**: Please be advised that, similar to cuts, results for processes
         that require a jet-algorithm on the generation level are only correct
@@ -1030,7 +1030,7 @@ class Interface:
         Parameters
         ----------
         jet_parameters: dict
-            A dict containing the members 'maxnjet'(int), 'p'(int), 'R'(float).
+            A dict containing the members 'maxnjets'(int), 'p'(int), 'R'(float).
         """
 
         if self._status == 'submitted' or self._status == 'finished':

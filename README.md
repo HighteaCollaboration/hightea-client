@@ -7,7 +7,7 @@ http://www.precision.hep.phy.cam.ac.uk/hightea/
 
 and the physics publication:
 
-ARXIV
+[arxiv:2304.05993](https://arxiv.org/abs/2304.05993)
 
 View this README including the inline documentation of the python library on [ReadTheDocs](https://hightea-client.readthedocs.io/en/latest/).
 
